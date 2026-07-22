@@ -286,14 +286,16 @@ function loadDaySchedule(day) {
 
     const unsubscribe = db.collection('activities')
         .where('date', '==', day)
-        .orderBy('time')
         .onSnapshot((snapshot) => {
             const activities = [];
             snapshot.forEach(doc => {
                 const data = doc.data();
+                if (!data || !data.time || !data.title) return;
                 data.id = doc.id;
                 activities.push(data);
             });
+
+            activities.sort((a, b) => a.time.localeCompare(b.time));
 
             // Convert activities to blocks format
             const blocks = activities.map(a => ({
@@ -313,7 +315,15 @@ function loadDaySchedule(day) {
             updateNextEvent();
         }, (err) => {
             console.error('Schedule error:', err);
-            timeline.innerHTML = '<div class="timeline-loading">Error al cargar.</div>';
+            if (err.code === 'permission-denied') {
+                timeline.innerHTML = '<div class="timeline-loading">Permiso denegado en Firestore.</div>';
+                return;
+            }
+            if (err.code === 'failed-precondition') {
+                timeline.innerHTML = '<div class="timeline-loading">Configuración incompleta de Firestore.</div>';
+                return;
+            }
+            timeline.innerHTML = '<div class="timeline-loading">Error al cargar cronograma.</div>';
         });
 
     scheduleUnsubscribes.push(unsubscribe);
@@ -368,6 +378,7 @@ function getUserAssignment(block) {
     const a = block.assignments || {};
     if (a['person_' + currentUser.id]) return a['person_' + currentUser.id];
     if (a['group_' + currentUser.group]) return a['group_' + currentUser.group];
+    if (a['admins'] && currentUser.isAdmin) return a['admins'];
     if (a['all']) return a['all'];
     return null;
 }
@@ -500,6 +511,7 @@ function getMemberCurrentTask(member, blocks) {
             const a = block.assignments || {};
             if (a['person_' + member.id]) return a['person_' + member.id];
             if (a['group_' + member.group]) return a['group_' + member.group] + ' (' + block.title + ')';
+            if (a['admins'] && member.isAdmin) return a['admins'] + ' (' + block.title + ')';
             if (a['all']) return a['all'] + ' (' + block.title + ')';
         }
     }

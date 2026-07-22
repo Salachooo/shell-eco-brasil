@@ -53,11 +53,15 @@ const firebaseConfig = {
 
 1. Abre `index.html` en el navegador
 2. Abre la consola (F12)
-3. Ejecuta: `seedInitialData()`
+3. Ejecuta: `seedAllData()`
 4. Esto creará:
-   - Admin: `admin` / `admin123`
-   - 15 usuarios placeholder: `persona1`-`persona15` / `eco2026`
-   - Cronograma base para los 7 días
+    - Miembros reales del equipo (admins y no admins)
+    - Actividades base del 21 al 27 de agosto
+    - Estructura lista para asignaciones por persona, grupo, todos o admins
+
+Comandos opcionales:
+- `seedTeamMembers()` solo miembros
+- `seedActivities()` solo actividades
 
 ### 4. Deploy a GitHub Pages
 
@@ -78,9 +82,9 @@ Luego en GitHub:
 
 | Rol | Usuario | Contraseña |
 |---|---|---|
-| Admin | `admin` | `admin123` |
+| Admin | Usuario del miembro con `isAdmin=true` | Se define al registrarse |
 | Admin URL | `admin.html` | — |
-| Miembros | `persona1`-`persona15` | `eco2026` |
+| Miembros | Usuario generado del nombre (ej: `samuel-salazar`) | Se define al registrarse |
 | Miembros URL | `index.html` | — |
 
 ## 📱 Uso

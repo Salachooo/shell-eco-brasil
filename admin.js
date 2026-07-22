@@ -129,28 +129,70 @@ function refreshMembersList() {
         return;
     }
 
+    const groups = ['alpha', 'beta', 'gamma', 'delta'];
+    const labels = { alpha: 'Alpha', beta: 'Beta', gamma: 'Gamma', delta: 'Delta' };
+    const day = document.getElementById('dashboardDaySelect').value;
+    const groupedMembers = {
+        alpha: adminMembers.filter(m => m.group === 'alpha'),
+        beta: adminMembers.filter(m => m.group === 'beta'),
+        gamma: adminMembers.filter(m => m.group === 'gamma'),
+        delta: adminMembers.filter(m => m.group === 'delta')
+    };
+
     let html = '';
-    adminMembers.forEach(m => {
-        const isAdmin = m.isAdmin ? '⭐ Admin' : '';
-        const registered = m.password ? '✅' : '⏳';
-        html += `<div class="member-item">
-            <div class="member-item-info">
-                <strong>${m.name || m.id} ${isAdmin}</strong>
-                <div style="font-size:12px;color:var(--text-muted)">@${m.id} | ${m.role || 'Sin rol'} | ${registered}</div>
-            </div>
-            <div class="member-item-actions" style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-                <select onchange="changeGroup('${m.id}', this.value)" style="width:auto;padding:4px 20px 4px 6px;font-size:11px;background:var(--bg-primary);border:1px solid var(--border-color);border-radius:4px;color:var(--text-primary)">
-                    <option value="alpha" ${m.group === 'alpha' ? 'selected' : ''}>Alpha</option>
-                    <option value="beta" ${m.group === 'beta' ? 'selected' : ''}>Beta</option>
-                    <option value="gamma" ${m.group === 'gamma' ? 'selected' : ''}>Gamma</option>
-                    <option value="delta" ${m.group === 'delta' ? 'selected' : ''}>Delta</option>
-                </select>
-                <button class="btn-icon-small" onclick="toggleAdmin('${m.id}')" title="Admin">⭐</button>
-                <button class="btn-icon-small" onclick="deleteMember('${m.id}')" title="Eliminar">🗑️</button>
-            </div>
-        </div>`;
+    groups.forEach(group => {
+        html += `<div style="margin:12px 0 8px;font-weight:700;color:var(--text-secondary)">🧩 ${labels[group]} (${groupedMembers[group].length})</div>`;
+
+        if (!groupedMembers[group].length) {
+            html += '<p class="text-muted" style="margin-bottom:10px">Sin miembros en este grupo.</p>';
+            return;
+        }
+
+        groupedMembers[group].forEach(m => {
+            const isAdmin = m.isAdmin ? '⭐ Admin' : '';
+            const registered = m.password ? '✅' : '⏳';
+            const taskText = getMemberTaskForDay(m, day);
+            html += `<div class="member-item">
+                <div class="member-item-info">
+                    <strong>${m.name || m.id} ${isAdmin}</strong>
+                    <div style="font-size:12px;color:var(--text-muted)">@${m.id} | ${m.role || 'Sin rol'} | ${registered}</div>
+                    <div style="font-size:12px;color:var(--accent-primary);margin-top:2px">Ahora: ${taskText}</div>
+                </div>
+                <div class="member-item-actions" style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+                    <select onchange="changeGroup('${m.id}', this.value)" style="width:auto;padding:4px 20px 4px 6px;font-size:11px;background:var(--bg-primary);border:1px solid var(--border-color);border-radius:4px;color:var(--text-primary)">
+                        <option value="alpha" ${m.group === 'alpha' ? 'selected' : ''}>Alpha</option>
+                        <option value="beta" ${m.group === 'beta' ? 'selected' : ''}>Beta</option>
+                        <option value="gamma" ${m.group === 'gamma' ? 'selected' : ''}>Gamma</option>
+                        <option value="delta" ${m.group === 'delta' ? 'selected' : ''}>Delta</option>
+                    </select>
+                    <button class="btn-icon-small" onclick="toggleAdmin('${m.id}')" title="Admin">⭐</button>
+                    <button class="btn-icon-small" onclick="deleteMember('${m.id}')" title="Eliminar">🗑️</button>
+                </div>
+            </div>`;
+        });
     });
+
     container.innerHTML = html;
+}
+
+function getMemberTaskForDay(member, day) {
+    const now = new Date();
+    const nowBrasil = new Date(now.toLocaleString('en-US', { timeZone: BRASIL_TIMEZONE }));
+    const dayActivities = adminActivities.filter(a => a.date === day);
+
+    for (const activity of dayActivities) {
+        const start = parseActivityTime(activity.time, day);
+        const end = new Date(start.getTime() + (activity.duration || 120) * 60000);
+        if (nowBrasil.getTime() < start.getTime() || nowBrasil.getTime() >= end.getTime()) continue;
+
+        const a = activity.assignments || {};
+        if (a['person_' + member.id]) return `${a['person_' + member.id]} (${activity.title})`;
+        if (a['group_' + member.group]) return `${a['group_' + member.group]} (${activity.title})`;
+        if (a['admins'] && member.isAdmin) return `${a['admins']} (${activity.title})`;
+        if (a['all']) return `${a['all']} (${activity.title})`;
+    }
+
+    return 'Sin tarea activa';
 }
 
 function populateAssignPersonSelect() {
@@ -228,15 +270,33 @@ document.getElementById('memberForm').addEventListener('submit', async (e) => {
 // ACTIVITIES COLLECTION
 // =============================================
 function loadAdminActivities() {
-    db.collection('activities').orderBy('date').orderBy('time').onSnapshot((snapshot) => {
+    db.collection('activities').onSnapshot((snapshot) => {
         adminActivities = [];
         snapshot.forEach(doc => {
             const data = doc.data();
+            if (!data || !data.date || !data.time || !data.title) return;
             data.id = doc.id;
+            if (!data.assignments || typeof data.assignments !== 'object') data.assignments = {};
             adminActivities.push(data);
         });
+
+        adminActivities.sort((a, b) => {
+            const da = `${a.date} ${a.time}`;
+            const dbs = `${b.date} ${b.time}`;
+            return da.localeCompare(dbs);
+        });
+
         refreshActivitiesList();
         refreshDashboard();
+        refreshMembersList();
+    }, (err) => {
+        console.error('Error loading activities:', err);
+        document.getElementById('activitiesListContent').innerHTML =
+            '<p class="text-muted">Error al cargar actividades. Revisa Firestore y recarga.</p>';
+        document.getElementById('assignActivitySelect').innerHTML =
+            '<option value="">Error al cargar actividades</option>';
+        document.getElementById('dashboardBody').innerHTML =
+            '<tr><td colspan="4" class="loading-row">Error al cargar actividades.</td></tr>';
     });
 }
 
@@ -461,7 +521,10 @@ async function removeAssignment(activityId, key) {
 // DASHBOARD
 // =============================================
 function setupDashboardDaySelect() {
-    document.getElementById('dashboardDaySelect').addEventListener('change', refreshDashboard);
+    document.getElementById('dashboardDaySelect').addEventListener('change', () => {
+        refreshDashboard();
+        refreshMembersList();
+    });
 }
 
 function refreshDashboard() {
