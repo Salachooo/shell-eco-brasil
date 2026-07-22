@@ -197,7 +197,6 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
 // =============================================
 function startApp() {
     document.getElementById('userName').textContent = currentUser.name;
-    document.getElementById('greeting').textContent = 'Hola,';
     startClock();
     loadMembers();
     loadDaySchedule(currentDay);
@@ -571,7 +570,7 @@ if (localStorage.getItem('theme') === 'light') {
 // =============================================
 // SYNC
 // =============================================
-window.addEventListener('online', () => { document.getElementById('syncIcon').textContent = '📡'; });
-window.addEventListener('offline', () => { document.getElementById('syncIcon').textContent = '📡'; });
+window.addEventListener('online', () => { const el = document.getElementById('syncIcon'); if (el) el.textContent = '📡'; });
+window.addEventListener('offline', () => { const el = document.getElementById('syncIcon'); if (el) el.textContent = '📡'; });
 
 console.log('SEM Brasil 2026 - App loaded');
