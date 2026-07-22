@@ -101,5 +101,33 @@ async function seedInitialData() {
     console.log('Users: persona1-15 / eco2026');
 }
 
-// Run this in browser console:
-// seedInitialData();
+// =============================================
+// setupFirstTime() - Called from the login button
+// =============================================
+async function setupFirstTime() {
+    const btn = document.querySelector('[onclick="setupFirstTime()"]');
+    if (btn) {
+        btn.textContent = '⏳ Creando datos...';
+        btn.disabled = true;
+    }
+    
+    try {
+        await seedInitialData();
+        if (btn) {
+            btn.textContent = '✅ ¡Listo! Ahora inicia sesión';
+            btn.style.borderColor = '#2ecc71';
+            btn.style.color = '#2ecc71';
+        }
+        alert('🎉 ¡Datos creados exitosamente!\n\nAdmin: admin / admin123\nUsuarios: persona1 a persona15 / eco2026\n\nYa puedes iniciar sesión.');
+    } catch (err) {
+        console.error('Error:', err);
+        if (btn) {
+            btn.textContent = '❌ Error - Intenta de nuevo';
+        }
+        alert('Error: ' + err.message + '\n\nRevisa la consola (F12) para más detalles.');
+    }
+}
+
+// Make functions global
+window.seedInitialData = seedInitialData;
+window.setupFirstTime = setupFirstTime;
