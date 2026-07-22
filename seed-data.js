@@ -1,133 +1,67 @@
 // =============================================
-// SEM Brasil 2026 - Seed Data Script
+// SEM Brasil 2026 - Seed Team Members
+// Run ONCE from browser console to populate Firestore:
+//   seedTeamMembers()
 // =============================================
-// Run this in the browser console ONCE after
-// setting up Firebase to populate initial data.
-// =============================================
 
-async function seedInitialData() {
-    console.log('🌱 Seeding initial data...');
-    
-    // 1. Create admin user
-    try {
-        await auth.createUserWithEmailAndPassword('admin@admin.sem2026', 'admin123');
-        console.log('✅ Admin user created: admin / admin123');
-    } catch (e) {
-        if (e.code === 'auth/email-already-in-use') {
-            console.log('ℹ️ Admin user already exists');
-        } else {
-            console.error('❌ Admin error:', e.message);
-        }
-    }
+const TEAM_MEMBERS = [
+    // Admins (5)
+    { name: "Samuel Salazar",    group: "alpha", isAdmin: true },
+    { name: "Martin Melguizo",   group: "alpha", isAdmin: true },
+    { name: "Sebastian Álvarez", group: "alpha", isAdmin: true },
+    { name: "Jeronimo Valencia", group: "alpha", isAdmin: true },
+    { name: "Miguel Calle",      group: "alpha", isAdmin: true },
+    // Team (10)
+    { name: "Mariana Zapata",    group: "alpha", isAdmin: false },
+    { name: "Jerioth Restrepo",  group: "beta",  isAdmin: false },
+    { name: "Nicolás Gómez",     group: "beta",  isAdmin: false },
+    { name: "Isaac Hurtado",     group: "beta",  isAdmin: false },
+    { name: "Kevin Acevedo",     group: "beta",  isAdmin: false },
+    { name: "Cristian Ramírez",  group: "gamma", isAdmin: false },
+    { name: "Felipe Vásquez",    group: "gamma", isAdmin: false },
+    { name: "Jorge Duque",       group: "gamma", isAdmin: false },
+    { name: "Tomás Herrera",     group: "gamma", isAdmin: false },
+    { name: "Juan Manuel Marín", group: "delta", isAdmin: false },
+];
 
-    // 2. Create placeholder members
-    const placeholderMembers = [
-        { id: 'persona1', name: 'Persona 1', group: 'alpha', role: 'Mecánico' },
-        { id: 'persona2', name: 'Persona 2', group: 'alpha', role: 'Electrónico' },
-        { id: 'persona3', name: 'Persona 3', group: 'alpha', role: 'Mecánico' },
-        { id: 'persona4', name: 'Persona 4', group: 'alpha', role: 'Electrónico' },
-        { id: 'persona5', name: 'Persona 5', group: 'beta', role: 'Mecánico' },
-        { id: 'persona6', name: 'Persona 6', group: 'beta', role: 'Electrónico' },
-        { id: 'persona7', name: 'Persona 7', group: 'beta', role: 'Mecánico' },
-        { id: 'persona8', name: 'Persona 8', group: 'beta', role: 'Electrónico' },
-        { id: 'persona9', name: 'Persona 9', group: 'gamma', role: 'Mecánico' },
-        { id: 'persona10', name: 'Persona 10', group: 'gamma', role: 'Electrónico' },
-        { id: 'persona11', name: 'Persona 11', group: 'gamma', role: 'Mecánico' },
-        { id: 'persona12', name: 'Persona 12', group: 'gamma', role: 'Electrónico' },
-        { id: 'persona13', name: 'Persona 13', group: 'delta', role: 'Mecánico' },
-        { id: 'persona14', name: 'Persona 14', group: 'delta', role: 'Electrónico' },
-        { id: 'persona15', name: 'Persona 15', group: 'delta', role: 'Mecánico' },
-    ];
+function nameToId(name) {
+    return name.toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/ñ/g, "n")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+}
 
-    for (const member of placeholderMembers) {
-        try {
-            await auth.createUserWithEmailAndPassword(member.id + '@sem2026.team', 'eco2026');
-            console.log(`✅ User created: ${member.id} / eco2026`);
-        } catch (e) {
-            if (e.code !== 'auth/email-already-in-use') {
-                console.error(`❌ User error ${member.id}:`, e.message);
-            }
-        }
+async function seedTeamMembers() {
+    console.log("🌱 Seeding team members...");
+    let count = 0;
 
-        await db.collection('members').doc(member.id).set({
+    for (const member of TEAM_MEMBERS) {
+        const id = nameToId(member.name);
+        const data = {
             name: member.name,
             group: member.group,
-            role: member.role
-        });
-        console.log(`✅ Member saved: ${member.name} (${member.group})`);
+            isAdmin: member.isAdmin,
+            role: member.isAdmin ? "Administrador" : "Miembro"
+        };
+
+        // Check if already exists
+        const existing = await db.collection("members").doc(id).get();
+        if (!existing.exists) {
+            await db.collection("members").doc(id).set(data);
+            console.log(`✅ Created: ${member.name} (${id})`);
+            count++;
+        } else {
+            // Update admin status just in case
+            await db.collection("members").doc(id).update({ isAdmin: member.isAdmin });
+            console.log(`ℹ️ Already exists: ${member.name}`);
+        }
     }
 
-    // 3. Create schedule for competition days
-    const days = [
-        '2026-08-21', '2026-08-22', '2026-08-23',
-        '2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27'
-    ];
-
-    for (const day of days) {
-        const isComp = day >= '2026-08-24' && day <= '2026-08-27';
-        
-        const events = isComp ? [
-            { id: 'b0', start: '06:30', end: '07:00', title: 'Despertar', icon: '⏰', type: 'team', assignments: { all: 'Prepararse para el día' } },
-            { id: 'b1', start: '07:00', end: '07:30', title: 'Desayuno', icon: '🍳', type: 'meal', assignments: { all: 'Desayunar' } },
-            { id: 'b2', start: '07:30', end: '08:15', title: 'Reunión de equipo', icon: '📋', type: 'meeting', assignments: { all: 'Asistir a reunión' } },
-            { id: 'b3', start: '08:15', end: '08:45', title: 'Salida al venue', icon: '🚌', type: 'travel', assignments: { all: 'Abordar transporte' } },
-            { id: 'b4', start: '09:00', end: '11:00', title: 'Technical Inspection', icon: '🔧', type: 'competition' },
-            { id: 'b5', start: '11:00', end: '12:30', title: 'Dynamic Events', icon: '🏁', type: 'competition' },
-            { id: 'b6', start: '12:30', end: '13:30', title: 'Almuerzo', icon: '🍔', type: 'meal', assignments: { all: 'Almorzar' } },
-            { id: 'b7', start: '14:00', end: '17:00', title: 'Carreras', icon: '🏎️', type: 'competition' },
-            { id: 'b8', start: '17:00', end: '18:30', title: 'Tiempo libre', icon: '☕', type: 'team' },
-            { id: 'b9', start: '18:30', end: '19:30', title: 'Cena', icon: '🍽️', type: 'meal', assignments: { all: 'Cenar' } },
-            { id: 'b10', start: '20:00', end: '21:00', title: 'Reunión de cierre', icon: '📋', type: 'meeting', assignments: { all: 'Asistir a reunión' } },
-        ] : [
-            { id: 'b0', start: '06:30', end: '07:00', title: 'Despertar', icon: '⏰', type: 'team', assignments: { all: 'Prepararse para el día' } },
-            { id: 'b1', start: '07:00', end: '07:30', title: 'Desayuno', icon: '🍳', type: 'meal', assignments: { all: 'Desayunar' } },
-            { id: 'b2', start: '07:30', end: '08:15', title: 'Reunión de equipo', icon: '📋', type: 'meeting', assignments: { all: 'Asistir a reunión' } },
-            { id: 'b3', start: '08:15', end: '08:45', title: 'Salida al venue', icon: '🚌', type: 'travel', assignments: { all: 'Abordar transporte' } },
-            { id: 'b4', start: '09:00', end: '11:00', title: 'Ensamblaje del vehículo', icon: '🔧', type: 'team' },
-            { id: 'b5', start: '11:00', end: '12:30', title: 'Preparación técnica', icon: '⚙️', type: 'team' },
-            { id: 'b6', start: '12:30', end: '13:30', title: 'Almuerzo', icon: '🍔', type: 'meal', assignments: { all: 'Almorzar' } },
-            { id: 'b7', start: '14:00', end: '17:00', title: 'Pruebas y ajustes', icon: '🔩', type: 'team' },
-            { id: 'b8', start: '17:00', end: '18:30', title: 'Tiempo libre', icon: '☕', type: 'team' },
-            { id: 'b9', start: '18:30', end: '19:30', title: 'Cena', icon: '🍽️', type: 'meal', assignments: { all: 'Cenar' } },
-            { id: 'b10', start: '20:00', end: '21:00', title: 'Reunión de cierre', icon: '📋', type: 'meeting', assignments: { all: 'Asistir a reunión' } },
-        ];
-
-        await db.collection('schedule').doc(day).set({ events });
-        console.log(`✅ Schedule saved for ${day}`);
-    }
-
-    console.log('🎉 Seed data complete!');
-    console.log('Admin: admin / admin123');
-    console.log('Users: persona1-15 / eco2026');
+    console.log(`🎉 Done! ${count} new members created. Total: ${TEAM_MEMBERS.length}`);
+    console.log("📝 Members can now register at: https://salachooo.github.io/shell-eco-brasil/");
+    console.log("👑 Admins can login at: https://salachooo.github.io/shell-eco-brasil/admin.html");
 }
 
-// =============================================
-// setupFirstTime() - Called from the login button
-// =============================================
-async function setupFirstTime() {
-    const btn = document.querySelector('[onclick="setupFirstTime()"]');
-    if (btn) {
-        btn.textContent = '⏳ Creando datos...';
-        btn.disabled = true;
-    }
-    
-    try {
-        await seedInitialData();
-        if (btn) {
-            btn.textContent = '✅ ¡Listo! Ahora inicia sesión';
-            btn.style.borderColor = '#2ecc71';
-            btn.style.color = '#2ecc71';
-        }
-        alert('🎉 ¡Datos creados exitosamente!\n\nAdmin: admin / admin123\nUsuarios: persona1 a persona15 / eco2026\n\nYa puedes iniciar sesión.');
-    } catch (err) {
-        console.error('Error:', err);
-        if (btn) {
-            btn.textContent = '❌ Error - Intenta de nuevo';
-        }
-        alert('Error: ' + err.message + '\n\nRevisa la consola (F12) para más detalles.');
-    }
-}
-
-// Make functions global
-window.seedInitialData = seedInitialData;
-window.setupFirstTime = setupFirstTime;
+// Make it callable from console
+window.seedTeamMembers = seedTeamMembers;

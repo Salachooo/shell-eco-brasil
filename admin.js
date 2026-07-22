@@ -86,7 +86,6 @@ function initAdmin() {
     setupAssignForm();
     setupEventForm();
     setupMemberForm();
-    setupCreateAdminBtn();
 }
 
 function setupAdminTabs() {
@@ -208,31 +207,6 @@ document.getElementById('memberForm').addEventListener('submit', async (e) => {
     }
     btn.classList.remove('loading');
 });
-
-// =============================================
-// CREATE ADMIN BUTTON
-// =============================================
-function setupCreateAdminBtn() {
-    document.getElementById('createAdminBtn').addEventListener('click', async () => {
-        const user = 'admin';
-        const pass = prompt('Elige una contraseña para admin:');
-        if (!pass || pass.length < 3) { alert('Contraseña muy corta'); return; }
-
-        try {
-            await db.collection('members').doc(user).set({
-                name: 'Admin',
-                password: pass,
-                group: 'alpha',
-                role: 'Administrador',
-                isAdmin: true,
-                createdAt: new Date().toISOString()
-            });
-            alert('✅ Admin creado: admin / ' + pass);
-        } catch (err) {
-            alert('Error: ' + err.message);
-        }
-    });
-}
 
 // =============================================
 // DASHBOARD

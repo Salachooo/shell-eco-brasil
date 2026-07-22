@@ -28,15 +28,24 @@ function getDayName(dateStr) {
 
 function getShortDayName(dateStr) { return getDayName(dateStr).substring(0, 3).toUpperCase(); }
 
+function nameToId(name) {
+    return name.toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/ñ/g, "n")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+}
+
 // =============================================
 // AUTH CON LOCALSTORAGE + FIRESTORE
 // =============================================
 
-// Auto-login: check if user was logged in before
+// Auto-login
 (function checkAutoLogin() {
     const saved = localStorage.getItem('sem2026_user');
     if (saved) {
         currentUser = JSON.parse(saved);
+        document.getElementById('registerBtn').textContent = '🔑 Cambiar de usuario';
         document.getElementById('loginScreen').classList.remove('active');
         document.getElementById('appScreen').classList.add('active');
         startApp();
@@ -59,6 +68,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         if (doc.exists && doc.data().password === password) {
             currentUser = { id: username, ...doc.data() };
             localStorage.setItem('sem2026_user', JSON.stringify(currentUser));
+            document.getElementById('registerBtn').textContent = '🔑 Cambiar de usuario';
             document.getElementById('loginScreen').classList.remove('active');
             document.getElementById('appScreen').classList.add('active');
             startApp();
@@ -66,16 +76,17 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
             errorEl.textContent = '❌ Usuario o contraseña incorrectos';
         }
     } catch (err) {
-        errorEl.textContent = 'Error de conexión. ¿Firestore activado?';
+        errorEl.textContent = 'Error de conexión.';
         console.error(err);
     }
     loginBtn.classList.remove('loading');
 });
 
-// Register
-document.getElementById('registerBtn').addEventListener('click', () => {
+// Show register screen - load available members
+document.getElementById('registerBtn').addEventListener('click', async () => {
     document.getElementById('loginScreen').classList.remove('active');
     document.getElementById('registerScreen').classList.add('active');
+    await loadAvailableMembers();
 });
 
 document.getElementById('backToLoginBtn').addEventListener('click', () => {
@@ -83,42 +94,83 @@ document.getElementById('backToLoginBtn').addEventListener('click', () => {
     document.getElementById('loginScreen').classList.add('active');
 });
 
+// Load members that don't have a password yet (unregistered)
+async function loadAvailableMembers() {
+    const select = document.getElementById('regMemberSelect');
+    select.innerHTML = '<option value="">Cargando...</option>';
+    select.disabled = true;
+
+    try {
+        const snapshot = await db.collection('members').get();
+        let html = '<option value="">¿Quién eres?</option>';
+        let count = 0;
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (!data.password) {
+                html += `<option value="${doc.id}">${data.name}</option>`;
+                count++;
+            }
+        });
+
+        if (count === 0) {
+            html = '<option value="">🎉 Todos ya están registrados</option>';
+        }
+
+        select.innerHTML = html;
+        select.disabled = false;
+        document.getElementById('regCount').textContent = `${count} personas disponibles`;
+    } catch (err) {
+        select.innerHTML = '<option value="">Error al cargar</option>';
+        console.error(err);
+    }
+}
+
+// Register
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const name = document.getElementById('regName').value.trim();
-    const username = document.getElementById('regUser').value.trim().toLowerCase();
+    const memberId = document.getElementById('regMemberSelect').value;
     const password = document.getElementById('regPass').value;
-    const role = document.getElementById('regRole').value.trim() || 'Miembro';
     const btn = e.target.querySelector('.btn');
     const errorEl = document.getElementById('registerError');
+
+    if (!memberId) {
+        errorEl.textContent = '❌ Selecciona quién eres';
+        return;
+    }
+    if (!password || password.length < 3) {
+        errorEl.textContent = '❌ La contraseña debe tener al menos 3 caracteres';
+        return;
+    }
 
     btn.classList.add('loading');
     errorEl.textContent = '';
 
     try {
-        // Check if username exists
-        const existing = await db.collection('members').doc(username).get();
-        if (existing.exists) {
-            errorEl.textContent = '❌ Ese usuario ya existe. Elige otro.';
+        const memberRef = db.collection('members').doc(memberId);
+        const doc = await memberRef.get();
+
+        if (!doc.exists) {
+            errorEl.textContent = '❌ No encontrado. Corre el seed primero.';
             btn.classList.remove('loading');
             return;
         }
 
-        // Save to Firestore
-        const memberData = {
-            name: name,
-            password: password,
-            group: 'alpha', // Default group, admin can change later
-            role: role,
-            createdAt: new Date().toISOString()
-        };
+        if (doc.data().password) {
+            errorEl.textContent = '❌ Esta persona ya tiene una cuenta.';
+            btn.classList.remove('loading');
+            return;
+        }
 
-        await db.collection('members').doc(username).set(memberData);
+        // Set password to register
+        await memberRef.update({ password: password });
 
         // Auto-login
-        currentUser = { id: username, ...memberData };
+        const updated = await memberRef.get();
+        currentUser = { id: memberId, ...updated.data() };
         localStorage.setItem('sem2026_user', JSON.stringify(currentUser));
 
+        document.getElementById('registerBtn').textContent = '🔑 Cambiar de usuario';
         document.getElementById('registerScreen').classList.remove('active');
         document.getElementById('appScreen').classList.add('active');
         startApp();
@@ -135,6 +187,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
     document.getElementById('appScreen').classList.remove('active');
     document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
     document.getElementById('loginScreen').classList.add('active');
+    document.getElementById('registerBtn').textContent = '📝 Registrarse';
     if (clockInterval) clearInterval(clockInterval);
     if (countdownInterval) clearInterval(countdownInterval);
 });
@@ -189,7 +242,6 @@ function setupDayNav() {
         });
     });
 
-    // Auto-select today
     const today = new Date();
     const todayStr = today.toISOString().substring(0, 10);
     document.querySelectorAll('.day-btn').forEach(btn => {
@@ -249,7 +301,7 @@ function loadDaySchedule(day) {
             }
         }, (err) => {
             console.error('Schedule error:', err);
-            timeline.innerHTML = '<div class="timeline-loading">Error al cargar. Verifica conexión.</div>';
+            timeline.innerHTML = '<div class="timeline-loading">Error al cargar.</div>';
         });
 
     scheduleUnsubscribes.push(unsubscribe);
@@ -274,7 +326,7 @@ function getDefaultSchedule(day) {
         { time: '14:00', title: 'Carreras', icon: '🏎️', type: 'competition' },
     ];
     const preCompBlocks = [
-        { time: '09:00', title: 'Ensamblaje del vehículo', icon: '🔧', type: 'team' },
+        { time: '09:00', title: 'Ensamblaje', icon: '🔧', type: 'team' },
         { time: '11:00', title: 'Preparación técnica', icon: '⚙️', type: 'team' },
         { time: '14:00', title: 'Pruebas y ajustes', icon: '🔩', type: 'team' },
     ];
@@ -448,12 +500,13 @@ function renderTeamGrid() {
         const task = getMemberCurrentTask(member, blocks);
         const initial = member.name ? member.name.charAt(0).toUpperCase() : '?';
         const colors = { alpha: '#e74c3c', beta: '#3498db', gamma: '#2ecc71', delta: '#f39c12' };
+        const badge = member.isAdmin ? '⭐' : '';
 
         html += `<div class="team-member-card">
             <div class="team-member-avatar" style="background:${colors[member.group] || '#666'}">${initial}</div>
             <div class="team-member-info">
-                <div class="team-member-name">${member.name || member.id}</div>
-                <div class="team-member-task">${task || 'Sin tarea asignada'}</div>
+                <div class="team-member-name">${member.name || member.id} ${badge}</div>
+                <div class="team-member-task">${task || (member.password ? 'Sin tarea' : '⏳ No registrado')}</div>
             </div>
             <div class="team-member-group group-${member.group}">${member.group}</div>
         </div>`;

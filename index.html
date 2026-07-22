@@ -50,24 +50,19 @@
             <div class="login-logo">
                 <div class="logo-icon">📝</div>
                 <h1>Registrarse</h1>
-                <p class="login-subtitle">Crea tu cuenta del equipo</p>
+                <p class="login-subtitle">Elige quién eres y crea tu contraseña</p>
             </div>
             <form id="registerForm" class="login-form">
                 <div class="input-group">
-                    <label for="regName">Nombre completo</label>
-                    <input type="text" id="regName" placeholder="Tu nombre" required>
+                    <label for="regMemberSelect">¿Quién eres?</label>
+                    <select id="regMemberSelect" required>
+                        <option value="">Cargando...</option>
+                    </select>
+                    <span id="regCount" style="font-size:12px;color:var(--text-muted);margin-top:4px;display:block"></span>
                 </div>
                 <div class="input-group">
-                    <label for="regUser">Usuario</label>
-                    <input type="text" id="regUser" placeholder="Elige un usuario" required>
-                </div>
-                <div class="input-group">
-                    <label for="regPass">Contraseña</label>
-                    <input type="password" id="regPass" placeholder="Elige una contraseña" required>
-                </div>
-                <div class="input-group">
-                    <label for="regRole">Rol</label>
-                    <input type="text" id="regRole" placeholder="Ej: Mecánico, Electrónico, Piloto...">
+                    <label for="regPass">Crea una contraseña</label>
+                    <input type="password" id="regPass" placeholder="Mínimo 3 caracteres" required minlength="3">
                 </div>
                 <button type="submit" class="btn btn-primary btn-full">
                     <span class="btn-text">Crear cuenta</span>
@@ -76,7 +71,7 @@
                 <p id="registerError" class="login-error"></p>
             </form>
             <div style="margin-top:16px;text-align:center">
-                <button id="backToLoginBtn" class="btn btn-outline btn-small">← Volver al inicio</button>
+                <button id="backToLoginBtn" class="btn btn-outline btn-small">← Ya tengo cuenta</button>
             </div>
         </div>
     </div>
@@ -90,7 +85,6 @@
                     <span class="header-name" id="userName">Usuario</span>
                 </div>
                 <div class="header-right">
-                    <button id="syncBtn" class="icon-btn" title="Estado">📡</button>
                     <button id="themeToggle" class="icon-btn" title="Tema">🌙</button>
                     <button id="logoutBtn" class="icon-btn" title="Cerrar sesión">🚪</button>
                 </div>
@@ -130,14 +124,10 @@
                     </div>
                 </div>
             </div>
-
             <div class="section-header">
                 <h2>📋 Cronograma del Día</h2>
-                <a href="https://results.sem-app.com/app/sem_2026_br/schedule" target="_blank" rel="noopener" class="btn btn-outline btn-small">
-                    🌐 Ver Oficial
-                </a>
+                <a href="https://results.sem-app.com/app/sem_2026_br/schedule" target="_blank" rel="noopener" class="btn btn-outline btn-small">🌐 Ver Oficial</a>
             </div>
-
             <div class="timeline" id="timeline">
                 <div class="timeline-loading">Cargando cronograma...</div>
             </div>
@@ -169,17 +159,13 @@
             <h2>👥 Equipo</h2>
             <span class="view-subtitle" id="teamCount">0 miembros</span>
         </div>
-        <div class="team-grid" id="teamGrid">
-            <div class="team-loading">Cargando equipo...</div>
-        </div>
+        <div class="team-grid" id="teamGrid"><div class="team-loading">Cargando...</div></div>
     </div>
 
     <!-- Tasks View -->
     <div id="tasksView" class="view-panel">
         <div class="view-header"><h2>✅ Mis Tareas</h2></div>
-        <div class="tasks-list" id="tasksList">
-            <div class="tasks-loading">Cargando tareas...</div>
-        </div>
+        <div class="tasks-list" id="tasksList"><div class="tasks-loading">Cargando...</div></div>
     </div>
 
     <!-- Info View -->
@@ -187,8 +173,8 @@
         <div class="view-header"><h2>ℹ️ Información</h2></div>
         <div class="info-content">
             <div class="info-card">
-                <h3>📞 Contactos</h3>
-                <p><strong>Admin:</strong> Samuel Salazar</p>
+                <h3>👥 Equipo SEM 2026</h3>
+                <p>15 integrantes - 5 admins</p>
             </div>
             <div class="info-card">
                 <h3>📋 Grupos</h3>
@@ -201,29 +187,23 @@
             </div>
             <div class="info-card">
                 <h3>🔗 Enlaces</h3>
-                <a href="https://results.sem-app.com/app/sem_2026_br/schedule" target="_blank" rel="noopener" class="info-link">Cronograma Oficial SEM</a>
-                <a href="https://www.shell.com/energy-and-innovation/shell-eco-marathon.html" target="_blank" rel="noopener" class="info-link">Shell Eco-marathon</a>
-            </div>
-            <div class="info-card">
-                <h3>📱 App</h3>
-                <p>Versión 2.0 - SEM Brasil 2026</p>
+                <a href="https://results.sem-app.com/app/sem_2026_br/schedule" target="_blank" class="info-link">Cronograma Oficial SEM</a>
+                <a href="admin.html" target="_blank" class="info-link">🔐 Panel Admin</a>
             </div>
         </div>
     </div>
 
     <script>
-        // Register Service Worker for PWA
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./service-worker.js')
-                    .then(reg => console.log('SW registered'))
-                    .catch(err => console.log('SW error:', err));
+                navigator.serviceWorker.register('./service-worker.js?v=2')
+                    .catch(() => {});
             });
         }
     </script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-    <script src="firebase-config.js?v=2"></script>
-    <script src="app.js?v=2"></script>
+    <script src="firebase-config.js?v=3"></script>
+    <script src="app.js?v=3"></script>
 </body>
 </html>
