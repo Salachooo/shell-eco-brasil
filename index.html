@@ -40,6 +40,11 @@
             <div style="margin-top:16px;text-align:center">
                 <button id="registerBtn" class="btn btn-outline btn-small">📝 Registrarse</button>
             </div>
+            <div style="margin-top:12px;text-align:center;border-top:1px solid var(--border-color);padding-top:12px">
+                <button onclick="seedTeamMembers()" class="btn btn-outline btn-small" style="font-size:11px;color:var(--text-muted)">
+                    ⚙️ Seed: Crear equipo en BD
+                </button>
+            </div>
             <p class="login-footer" style="margin-top:24px">Shell Eco-marathon Brasil 2026</p>
         </div>
     </div>
@@ -204,6 +209,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
     <script src="firebase-config.js?v=3"></script>
+    <script src="seed-data.js?v=3"></script>
     <script src="app.js?v=3"></script>
 </body>
 </html>
