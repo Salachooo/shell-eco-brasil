@@ -297,6 +297,8 @@ function setupActivityForm() {
             });
             document.getElementById('activityForm').reset();
             document.getElementById('activityDuration').value = 120;
+            // Re-set date after reset
+            document.getElementById('activityDate').value = document.getElementById('activitiesDaySelect').value;
             alert('✅ Actividad creada');
         } catch (err) { alert('Error: ' + err.message); }
         btn.classList.remove('loading');
