@@ -16,7 +16,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 
 const db = firebase.firestore();
-const auth = firebase.auth();
 
 // Enable offline persistence
 db.enablePersistence()
@@ -24,5 +23,5 @@ db.enablePersistence()
         console.warn("Firebase persistence error:", err.code);
     });
 
-// Use Brasil timezone (BRT = UTC-3)
+// Brasil timezone
 const BRASIL_TIMEZONE = 'America/Sao_Paulo';

@@ -14,12 +14,13 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- LOGIN SCREEN -->
     <div id="loginScreen" class="screen active">
         <div class="login-container">
             <div class="login-logo">
                 <div class="logo-icon">🏎️</div>
                 <h1>SEM Brasil 2026</h1>
-                <p class="login-subtitle">Team Schedule</p>
+                <p class="login-subtitle">Shell Eco-marathon</p>
             </div>
             <form id="loginForm" class="login-form">
                 <div class="input-group">
@@ -36,15 +37,51 @@
                 </button>
                 <p id="loginError" class="login-error"></p>
             </form>
-            <div style="margin-top: 20px; text-align: center;">
-                <button onclick="setupFirstTime()" class="btn btn-outline btn-small" style="font-size: 12px;">
-                    🚀 Primer uso: Crear admin y datos
-                </button>
+            <div style="margin-top:16px;text-align:center">
+                <button id="registerBtn" class="btn btn-outline btn-small">📝 Registrarse</button>
             </div>
-            <p class="login-footer">Shell Eco-marathon Brasil 2026</p>
+            <p class="login-footer" style="margin-top:24px">Shell Eco-marathon Brasil 2026</p>
         </div>
     </div>
 
+    <!-- REGISTER SCREEN -->
+    <div id="registerScreen" class="screen">
+        <div class="login-container">
+            <div class="login-logo">
+                <div class="logo-icon">📝</div>
+                <h1>Registrarse</h1>
+                <p class="login-subtitle">Crea tu cuenta del equipo</p>
+            </div>
+            <form id="registerForm" class="login-form">
+                <div class="input-group">
+                    <label for="regName">Nombre completo</label>
+                    <input type="text" id="regName" placeholder="Tu nombre" required>
+                </div>
+                <div class="input-group">
+                    <label for="regUser">Usuario</label>
+                    <input type="text" id="regUser" placeholder="Elige un usuario" required>
+                </div>
+                <div class="input-group">
+                    <label for="regPass">Contraseña</label>
+                    <input type="password" id="regPass" placeholder="Elige una contraseña" required>
+                </div>
+                <div class="input-group">
+                    <label for="regRole">Rol</label>
+                    <input type="text" id="regRole" placeholder="Ej: Mecánico, Electrónico, Piloto...">
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">
+                    <span class="btn-text">Crear cuenta</span>
+                    <span class="btn-loader"></span>
+                </button>
+                <p id="registerError" class="login-error"></p>
+            </form>
+            <div style="margin-top:16px;text-align:center">
+                <button id="backToLoginBtn" class="btn btn-outline btn-small">← Volver al inicio</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- APP SCREEN -->
     <div id="appScreen" class="screen">
         <header class="app-header">
             <div class="header-top">
@@ -53,16 +90,14 @@
                     <span class="header-name" id="userName">Usuario</span>
                 </div>
                 <div class="header-right">
-                    <button id="syncBtn" class="icon-btn" title="Estado de conexión">
-                        <span id="syncIcon" class="sync-online">📡</span>
-                    </button>
-                    <button id="themeToggle" class="icon-btn" title="Modo oscuro/claro">🌙</button>
+                    <button id="syncBtn" class="icon-btn" title="Estado">📡</button>
+                    <button id="themeToggle" class="icon-btn" title="Tema">🌙</button>
                     <button id="logoutBtn" class="icon-btn" title="Cerrar sesión">🚪</button>
                 </div>
             </div>
             <div class="header-clock">
                 <span id="currentTime" class="clock-time">--:--</span>
-                <span id="currentTimezone" class="clock-tz">BRT</span>
+                <span class="clock-tz">BRT</span>
                 <span id="currentDate" class="clock-date">---</span>
             </div>
             <div class="next-event-bar" id="nextEventBar">
@@ -92,7 +127,6 @@
                     <div class="current-task-info">
                         <span class="current-task-title" id="currentTaskTitle">Cargando...</span>
                         <span class="current-task-role" id="currentTaskRole"></span>
-                        <span class="current-task-block" id="currentTaskBlock"></span>
                     </div>
                 </div>
             </div>
@@ -133,7 +167,7 @@
     <div id="teamView" class="view-panel">
         <div class="view-header">
             <h2>👥 Equipo</h2>
-            <span class="view-subtitle" id="teamCount">15 miembros</span>
+            <span class="view-subtitle" id="teamCount">0 miembros</span>
         </div>
         <div class="team-grid" id="teamGrid">
             <div class="team-loading">Cargando equipo...</div>
@@ -142,9 +176,7 @@
 
     <!-- Tasks View -->
     <div id="tasksView" class="view-panel">
-        <div class="view-header">
-            <h2>✅ Mis Tareas</h2>
-        </div>
+        <div class="view-header"><h2>✅ Mis Tareas</h2></div>
         <div class="tasks-list" id="tasksList">
             <div class="tasks-loading">Cargando tareas...</div>
         </div>
@@ -152,9 +184,7 @@
 
     <!-- Info View -->
     <div id="infoView" class="view-panel">
-        <div class="view-header">
-            <h2>ℹ️ Información</h2>
-        </div>
+        <div class="view-header"><h2>ℹ️ Información</h2></div>
         <div class="info-content">
             <div class="info-card">
                 <h3>📞 Contactos</h3>
@@ -170,19 +200,13 @@
                 </div>
             </div>
             <div class="info-card">
-                <h3>📍 Ubicaciones</h3>
-                <p>Venue: Shell Eco-marathon Brasil</p>
-                <p>Hospedaje: Por definir</p>
-            </div>
-            <div class="info-card">
                 <h3>🔗 Enlaces</h3>
                 <a href="https://results.sem-app.com/app/sem_2026_br/schedule" target="_blank" rel="noopener" class="info-link">Cronograma Oficial SEM</a>
                 <a href="https://www.shell.com/energy-and-innovation/shell-eco-marathon.html" target="_blank" rel="noopener" class="info-link">Shell Eco-marathon</a>
             </div>
             <div class="info-card">
                 <h3>📱 App</h3>
-                <p>Versión 1.0.0</p>
-                <p>Shell Eco-marathon Brasil 2026</p>
+                <p>Versión 2.0 - SEM Brasil 2026</p>
             </div>
         </div>
     </div>
@@ -191,17 +215,15 @@
         // Register Service Worker for PWA
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js')
-                    .then(reg => console.log('SW registered:', reg.scope))
+                navigator.serviceWorker.register('./service-worker.js')
+                    .then(reg => console.log('SW registered'))
                     .catch(err => console.log('SW error:', err));
             });
         }
     </script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
     <script src="firebase-config.js"></script>
-    <script src="seed-data.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
