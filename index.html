@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="description" content="Shell Eco-marathon Brasil 2026 - Team Schedule">
+    <title>Team Schedule | SEM Brasil 2026</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="loginScreen" class="screen active">
+        <div class="login-container">
+            <div class="login-logo">
+                <div class="logo-icon">🏎️</div>
+                <h1>SEM Brasil 2026</h1>
+                <p class="login-subtitle">Team Schedule</p>
+            </div>
+            <form id="loginForm" class="login-form">
+                <div class="input-group">
+                    <label for="loginUser">Usuario</label>
+                    <input type="text" id="loginUser" placeholder="Tu usuario" required autocomplete="username">
+                </div>
+                <div class="input-group">
+                    <label for="loginPass">Contraseña</label>
+                    <input type="password" id="loginPass" placeholder="Tu contraseña" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn btn-primary btn-full" id="loginBtn">
+                    <span class="btn-text">Ingresar</span>
+                    <span class="btn-loader"></span>
+                </button>
+                <p id="loginError" class="login-error"></p>
+            </form>
+            <p class="login-footer">Shell Eco-marathon Brasil 2026</p>
+        </div>
+    </div>
+
+    <div id="appScreen" class="screen">
+        <header class="app-header">
+            <div class="header-top">
+                <div class="header-left">
+                    <span class="header-greeting" id="greeting">Hola,</span>
+                    <span class="header-name" id="userName">Usuario</span>
+                </div>
+                <div class="header-right">
+                    <button id="syncBtn" class="icon-btn" title="Estado de conexión">
+                        <span id="syncIcon" class="sync-online">📡</span>
+                    </button>
+                    <button id="themeToggle" class="icon-btn" title="Modo oscuro/claro">🌙</button>
+                    <button id="logoutBtn" class="icon-btn" title="Cerrar sesión">🚪</button>
+                </div>
+            </div>
+            <div class="header-clock">
+                <span id="currentTime" class="clock-time">--:--</span>
+                <span id="currentTimezone" class="clock-tz">BRT</span>
+                <span id="currentDate" class="clock-date">---</span>
+            </div>
+            <div class="next-event-bar" id="nextEventBar">
+                <span class="next-event-label">Próximo:</span>
+                <span id="nextEventText" class="next-event-text">Cargando...</span>
+                <span id="nextEventCountdown" class="next-event-countdown">--:--:--</span>
+            </div>
+            <nav class="day-nav" id="dayNav">
+                <button class="day-btn" data-day="2026-08-21">21</button>
+                <button class="day-btn" data-day="2026-08-22">22</button>
+                <button class="day-btn" data-day="2026-08-23">23</button>
+                <button class="day-btn active" data-day="2026-08-24">24</button>
+                <button class="day-btn" data-day="2026-08-25">25</button>
+                <button class="day-btn" data-day="2026-08-26">26</button>
+                <button class="day-btn" data-day="2026-08-27">27</button>
+            </nav>
+        </header>
+
+        <main class="app-main" id="appMain">
+            <div class="current-task-card" id="currentTaskCard">
+                <div class="current-task-header">
+                    <span class="current-task-label">📍 AHORA</span>
+                    <span class="current-task-time" id="currentTaskTime">--:--</span>
+                </div>
+                <div class="current-task-body">
+                    <span class="current-task-icon" id="currentTaskIcon">📋</span>
+                    <div class="current-task-info">
+                        <span class="current-task-title" id="currentTaskTitle">Cargando...</span>
+                        <span class="current-task-role" id="currentTaskRole"></span>
+                        <span class="current-task-block" id="currentTaskBlock"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-header">
+                <h2>📋 Cronograma del Día</h2>
+                <a href="https://results.sem-app.com/app/sem_2026_br/schedule" target="_blank" rel="noopener" class="btn btn-outline btn-small">
+                    🌐 Ver Oficial
+                </a>
+            </div>
+
+            <div class="timeline" id="timeline">
+                <div class="timeline-loading">Cargando cronograma...</div>
+            </div>
+        </main>
+
+        <nav class="bottom-nav">
+            <button class="bottom-nav-btn active" data-view="schedule">
+                <span class="bottom-nav-icon">📅</span>
+                <span class="bottom-nav-label">Mi Día</span>
+            </button>
+            <button class="bottom-nav-btn" data-view="team">
+                <span class="bottom-nav-icon">👥</span>
+                <span class="bottom-nav-label">Equipo</span>
+            </button>
+            <button class="bottom-nav-btn" data-view="tasks">
+                <span class="bottom-nav-icon">✅</span>
+                <span class="bottom-nav-label">Tareas</span>
+            </button>
+            <button class="bottom-nav-btn" data-view="info">
+                <span class="bottom-nav-icon">ℹ️</span>
+                <span class="bottom-nav-label">Info</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Team View -->
+    <div id="teamView" class="view-panel">
+        <div class="view-header">
+            <h2>👥 Equipo</h2>
+            <span class="view-subtitle" id="teamCount">15 miembros</span>
+        </div>
+        <div class="team-grid" id="teamGrid">
+            <div class="team-loading">Cargando equipo...</div>
+        </div>
+    </div>
+
+    <!-- Tasks View -->
+    <div id="tasksView" class="view-panel">
+        <div class="view-header">
+            <h2>✅ Mis Tareas</h2>
+        </div>
+        <div class="tasks-list" id="tasksList">
+            <div class="tasks-loading">Cargando tareas...</div>
+        </div>
+    </div>
+
+    <!-- Info View -->
+    <div id="infoView" class="view-panel">
+        <div class="view-header">
+            <h2>ℹ️ Información</h2>
+        </div>
+        <div class="info-content">
+            <div class="info-card">
+                <h3>📞 Contactos</h3>
+                <p><strong>Admin:</strong> Samuel Salazar</p>
+            </div>
+            <div class="info-card">
+                <h3>📋 Grupos</h3>
+                <div class="info-groups">
+                    <div class="group-badge alpha">Alpha</div>
+                    <div class="group-badge beta">Beta</div>
+                    <div class="group-badge gamma">Gamma</div>
+                    <div class="group-badge delta">Delta</div>
+                </div>
+            </div>
+            <div class="info-card">
+                <h3>📍 Ubicaciones</h3>
+                <p>Venue: Shell Eco-marathon Brasil</p>
+                <p>Hospedaje: Por definir</p>
+            </div>
+            <div class="info-card">
+                <h3>🔗 Enlaces</h3>
+                <a href="https://results.sem-app.com/app/sem_2026_br/schedule" target="_blank" rel="noopener" class="info-link">Cronograma Oficial SEM</a>
+                <a href="https://www.shell.com/energy-and-innovation/shell-eco-marathon.html" target="_blank" rel="noopener" class="info-link">Shell Eco-marathon</a>
+            </div>
+            <div class="info-card">
+                <h3>📱 App</h3>
+                <p>Versión 1.0.0</p>
+                <p>Shell Eco-marathon Brasil 2026</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(reg => console.log('SW registered:', reg.scope))
+                    .catch(err => console.log('SW error:', err));
+            });
+        }
+    </script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

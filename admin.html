@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="description" content="Admin Panel - SEM Brasil 2026">
+    <title>Admin | SEM Brasil 2026</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="admin-body">
+    <div id="adminLoginScreen" class="screen active">
+        <div class="login-container">
+            <div class="login-logo">
+                <div class="logo-icon">⚙️</div>
+                <h1>Admin Panel</h1>
+                <p class="login-subtitle">SEM Brasil 2026</p>
+            </div>
+            <form id="adminLoginForm" class="login-form">
+                <div class="input-group">
+                    <label for="adminUser">Usuario Admin</label>
+                    <input type="text" id="adminUser" placeholder="admin" required autocomplete="username">
+                </div>
+                <div class="input-group">
+                    <label for="adminPass">Contraseña</label>
+                    <input type="password" id="adminPass" placeholder="Contraseña" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn btn-primary btn-full" id="adminLoginBtn">
+                    <span class="btn-text">Ingresar como Admin</span>
+                    <span class="btn-loader"></span>
+                </button>
+                <p id="adminLoginError" class="login-error"></p>
+            </form>
+            <a href="index.html" class="login-back-link">← Ir a la app principal</a>
+        </div>
+    </div>
+
+    <div id="adminAppScreen" class="screen">
+        <header class="app-header admin-header">
+            <div class="header-top">
+                <div class="header-left">
+                    <span class="header-greeting">⚙️ Admin:</span>
+                    <span class="header-name" id="adminName">Samuel</span>
+                </div>
+                <div class="header-right">
+                    <button id="adminSyncBtn" class="icon-btn" title="Estado">📡</button>
+                    <button id="adminLogoutBtn" class="icon-btn" title="Cerrar sesión">🚪</button>
+                </div>
+            </div>
+            <div class="header-clock">
+                <span id="adminCurrentTime" class="clock-time">--:--</span>
+                <span class="clock-tz">BRT</span>
+                <span id="adminCurrentDate" class="clock-date">---</span>
+            </div>
+            <nav class="admin-tabs" id="adminTabs">
+                <button class="admin-tab active" data-tab="dashboard">📊 Dashboard</button>
+                <button class="admin-tab" data-tab="assignments">📝 Asignaciones</button>
+                <button class="admin-tab" data-tab="events">📅 Eventos</button>
+                <button class="admin-tab" data-tab="members">👥 Miembros</button>
+            </nav>
+        </header>
+
+        <main class="admin-main">
+            <!-- DASHBOARD TAB -->
+            <div class="admin-tab-content active" id="tab-dashboard">
+                <div class="section-header">
+                    <h2>📊 Dashboard en Vivo</h2>
+                    <div class="admin-day-selector">
+                        <label>Día:</label>
+                        <select id="dashboardDaySelect">
+                            <option value="2026-08-21">21 Ago - Llegada</option>
+                            <option value="2026-08-22">22 Ago - Preparación</option>
+                            <option value="2026-08-23">23 Ago - Ensamblaje</option>
+                            <option value="2026-08-24" selected>24 Ago - Competencia D1</option>
+                            <option value="2026-08-25">25 Ago - Competencia D2</option>
+                            <option value="2026-08-26">26 Ago - Competencia D3</option>
+                            <option value="2026-08-27">27 Ago - Competencia D4</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="dashboard-table-container">
+                    <table class="dashboard-table" id="dashboardTable">
+                        <thead>
+                            <tr>
+                                <th>Persona</th>
+                                <th>Grupo</th>
+                                <th>Tarea Actual</th>
+                                <th>Bloque</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dashboardBody">
+                            <tr><td colspan="4" class="loading-row">Cargando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="dashboard-legend">
+                    <span class="legend-item"><span class="legend-dot alpha"></span> Alpha</span>
+                    <span class="legend-item"><span class="legend-dot beta"></span> Beta</span>
+                    <span class="legend-item"><span class="legend-dot gamma"></span> Gamma</span>
+                    <span class="legend-item"><span class="legend-dot delta"></span> Delta</span>
+                </div>
+            </div>
+
+            <!-- ASSIGNMENTS TAB -->
+            <div class="admin-tab-content" id="tab-assignments">
+                <div class="section-header">
+                    <h2>📝 Asignar Tareas</h2>
+                    <div class="admin-day-selector">
+                        <label>Día:</label>
+                        <select id="assignDaySelect">
+                            <option value="2026-08-21">21 Ago - Llegada</option>
+                            <option value="2026-08-22">22 Ago - Preparación</option>
+                            <option value="2026-08-23">23 Ago - Ensamblaje</option>
+                            <option value="2026-08-24" selected>24 Ago - Competencia D1</option>
+                            <option value="2026-08-25">25 Ago - Competencia D2</option>
+                            <option value="2026-08-26">26 Ago - Competencia D3</option>
+                            <option value="2026-08-27">27 Ago - Competencia D4</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="assign-form-card">
+                    <h3>Nueva Asignación</h3>
+                    <form id="assignForm" class="assign-form">
+                        <div class="input-group">
+                            <label>Bloque Horario</label>
+                            <select id="assignBlock" required>
+                                <option value="">Seleccionar bloque...</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Asignar a</label>
+                            <select id="assignTarget" required>
+                                <option value="">Seleccionar...</option>
+                                <option value="all">👥 Todo el equipo</option>
+                                <option value="group_alpha">🅰️ Grupo Alpha</option>
+                                <option value="group_beta">🅱️ Grupo Beta</option>
+                                <option value="group_gamma">🅲 Grupo Gamma</option>
+                                <option value="group_delta">🅳 Grupo Delta</option>
+                                <option value="individual">👤 Persona específica</option>
+                            </select>
+                        </div>
+                        <div class="input-group" id="assignPersonGroup" style="display:none;">
+                            <label>Persona</label>
+                            <select id="assignPerson">
+                                <option value="">Seleccionar persona...</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Tarea / Rol</label>
+                            <input type="text" id="assignRole" placeholder="Ej: Managing Paddock" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full">Asignar</button>
+                    </form>
+                </div>
+                <div class="assign-list" id="assignList">
+                    <h3>Asignaciones Actuales</h3>
+                    <div id="assignListContent" class="assign-list-content">
+                        <p class="text-muted">Selecciona un día para ver asignaciones.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EVENTS TAB -->
+            <div class="admin-tab-content" id="tab-events">
+                <div class="section-header">
+                    <h2>📅 Eventos de Equipo</h2>
+                    <div class="admin-day-selector">
+                        <label>Día:</label>
+                        <select id="eventsDaySelect">
+                            <option value="2026-08-21">21 Ago - Llegada</option>
+                            <option value="2026-08-22">22 Ago - Preparación</option>
+                            <option value="2026-08-23">23 Ago - Ensamblaje</option>
+                            <option value="2026-08-24" selected>24 Ago - Competencia D1</option>
+                            <option value="2026-08-25">25 Ago - Competencia D2</option>
+                            <option value="2026-08-26">26 Ago - Competencia D3</option>
+                            <option value="2026-08-27">27 Ago - Competencia D4</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="events-form-card">
+                    <h3>Nuevo Evento</h3>
+                    <form id="eventForm" class="assign-form">
+                        <div class="input-group">
+                            <label>Hora</label>
+                            <input type="time" id="eventTime" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Título</label>
+                            <input type="text" id="eventTitle" placeholder="Ej: Desayuno" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Icono (opcional)</label>
+                            <input type="text" id="eventIcon" placeholder="🍳" maxlength="2">
+                        </div>
+                        <div class="input-group">
+                            <label>Tipo</label>
+                            <select id="eventType">
+                                <option value="team">👥 Equipo</option>
+                                <option value="competition">🏁 Competencia</option>
+                                <option value="travel">🚌 Transporte</option>
+                                <option value="meal">🍽️ Comida</option>
+                                <option value="meeting">📋 Reunión</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full">Agregar Evento</button>
+                    </form>
+                </div>
+                <div class="events-list" id="eventsList">
+                    <h3>Eventos del Día</h3>
+                    <div id="eventsListContent" class="events-list-content">
+                        <p class="text-muted">Selecciona un día para ver eventos.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MEMBERS TAB -->
+            <div class="admin-tab-content" id="tab-members">
+                <div class="section-header">
+                    <h2>👥 Miembros del Equipo</h2>
+                </div>
+                <div class="members-form-card">
+                    <h3>Agregar Miembro</h3>
+                    <form id="memberForm" class="assign-form">
+                        <div class="input-group">
+                            <label>Nombre</label>
+                            <input type="text" id="memberName" placeholder="Nombre completo" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Usuario (login)</label>
+                            <input type="text" id="memberUser" placeholder="usuario" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Grupo</label>
+                            <select id="memberGroup">
+                                <option value="alpha">Alpha</option>
+                                <option value="beta">Beta</option>
+                                <option value="gamma">Gamma</option>
+                                <option value="delta">Delta</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Rol Principal</label>
+                            <input type="text" id="memberRole" placeholder="Ej: Mecánico, Electrónico">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full">Agregar Miembro</button>
+                    </form>
+                </div>
+                <div class="members-list" id="membersList">
+                    <h3>Miembros Actuales</h3>
+                    <div id="membersListContent" class="members-list-content">
+                        <p class="text-muted">Cargando miembros...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>
