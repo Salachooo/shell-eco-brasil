@@ -11,7 +11,36 @@
     <title>Team Schedule | SEM Brasil 2026</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="shortcut icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏎️</text></svg>">
     <link rel="stylesheet" href="style.css">
+    <style>
+        .app-logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .app-logo-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--accent-primary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        .app-logo-text {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--accent-primary);
+            line-height: 1.2;
+        }
+        .app-logo-sub {
+            font-size: 10px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+    </style>
 </head>
 <body>
     <!-- LOGIN SCREEN -->
@@ -40,12 +69,7 @@
             <div style="margin-top:16px;text-align:center">
                 <button id="registerBtn" class="btn btn-outline btn-small">📝 Registrarse</button>
             </div>
-            <div style="margin-top:12px;text-align:center;border-top:1px solid var(--border-color);padding-top:12px">
-                <button onclick="seedTeamMembers()" class="btn btn-outline btn-small" style="font-size:11px;color:var(--text-muted)">
-                    ⚙️ Seed: Crear equipo en BD
-                </button>
-            </div>
-            <p class="login-footer" style="margin-top:24px">Shell Eco-marathon Brasil 2026</p>
+            <p class="login-footer">Shell Eco-marathon Brasil 2026</p>
         </div>
     </div>
 
@@ -86,10 +110,16 @@
         <header class="app-header">
             <div class="header-top">
                 <div class="header-left">
-                    <span class="header-greeting" id="greeting">Hola,</span>
-                    <span class="header-name" id="userName">Usuario</span>
+                    <div class="app-logo">
+                        <div class="app-logo-icon">🏎️</div>
+                        <div>
+                            <div class="app-logo-text">SEM Brasil</div>
+                            <div class="app-logo-sub">Team Schedule</div>
+                        </div>
+                    </div>
                 </div>
                 <div class="header-right">
+                    <span class="header-name" id="userName" style="font-size:13px">Usuario</span>
                     <button id="themeToggle" class="icon-btn" title="Tema">🌙</button>
                     <button id="logoutBtn" class="icon-btn" title="Cerrar sesión">🚪</button>
                 </div>
@@ -179,7 +209,7 @@
         <div class="info-content">
             <div class="info-card">
                 <h3>👥 Equipo SEM 2026</h3>
-                <p>15 integrantes - 5 admins</p>
+                <p>15 integrantes</p>
             </div>
             <div class="info-card">
                 <h3>📋 Grupos</h3>
@@ -209,7 +239,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
     <script src="firebase-config.js?v=3"></script>
-    <script src="seed-data.js?v=3"></script>
     <script src="app.js?v=3"></script>
 </body>
 </html>

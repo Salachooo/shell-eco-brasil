@@ -131,13 +131,20 @@ function refreshMembersList() {
     let html = '';
     adminMembers.forEach(m => {
         const isAdmin = m.isAdmin ? '⭐ Admin' : '';
+        const registered = m.password ? '✅' : '⏳';
         html += `<div class="member-item">
             <div class="member-item-info">
                 <strong>${m.name || m.id} ${isAdmin}</strong>
-                <div style="font-size:12px;color:var(--text-muted)">@${m.id} | ${m.role || 'Sin rol'} | ${m.group}</div>
+                <div style="font-size:12px;color:var(--text-muted)">@${m.id} | ${m.role || 'Sin rol'} | ${registered}</div>
             </div>
-            <div class="member-item-actions">
-                <button class="btn-icon-small" onclick="toggleAdmin('${m.id}')" title="Hacer admin">⭐</button>
+            <div class="member-item-actions" style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+                <select onchange="changeGroup('${m.id}', this.value)" style="width:auto;padding:4px 20px 4px 6px;font-size:11px;background:var(--bg-primary);border:1px solid var(--border-color);border-radius:4px;color:var(--text-primary)">
+                    <option value="alpha" ${m.group === 'alpha' ? 'selected' : ''}>Alpha</option>
+                    <option value="beta" ${m.group === 'beta' ? 'selected' : ''}>Beta</option>
+                    <option value="gamma" ${m.group === 'gamma' ? 'selected' : ''}>Gamma</option>
+                    <option value="delta" ${m.group === 'delta' ? 'selected' : ''}>Delta</option>
+                </select>
+                <button class="btn-icon-small" onclick="toggleAdmin('${m.id}')" title="Admin">⭐</button>
                 <button class="btn-icon-small" onclick="deleteMember('${m.id}')" title="Eliminar">🗑️</button>
             </div>
         </div>`;
@@ -158,6 +165,14 @@ async function toggleAdmin(id) {
     if (doc.exists) {
         const current = doc.data().isAdmin || false;
         await db.collection('members').doc(id).update({ isAdmin: !current });
+    }
+}
+
+async function changeGroup(id, group) {
+    try {
+        await db.collection('members').doc(id).update({ group: group });
+    } catch (err) {
+        alert('Error: ' + err.message);
     }
 }
 
