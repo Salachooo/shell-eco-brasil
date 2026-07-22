@@ -284,20 +284,33 @@ function loadDaySchedule(day) {
     scheduleUnsubscribes.forEach(u => u());
     scheduleUnsubscribes = [];
 
-    const unsubscribe = db.collection('schedule').doc(day)
-        .onSnapshot((doc) => {
-            if (doc.exists) {
-                allScheduleData[day] = doc.data();
-                renderTimeline(day, doc.data());
-                updateCurrentTask();
-                updateNextEvent();
-            } else {
-                const defaultData = getDefaultSchedule(day);
-                allScheduleData[day] = defaultData;
-                renderTimeline(day, defaultData);
-                updateCurrentTask();
-                updateNextEvent();
-            }
+    const unsubscribe = db.collection('activities')
+        .where('date', '==', day)
+        .orderBy('time')
+        .onSnapshot((snapshot) => {
+            const activities = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                data.id = doc.id;
+                activities.push(data);
+            });
+
+            // Convert activities to blocks format
+            const blocks = activities.map(a => ({
+                id: a.id,
+                start: a.time,
+                end: addMinutesToTime(a.time, a.duration || 120),
+                title: a.title,
+                icon: a.icon || '📋',
+                type: a.type || 'team',
+                assignments: a.assignments || {}
+            }));
+
+            const data = { events: blocks };
+            allScheduleData[day] = data;
+            renderTimeline(day, data);
+            updateCurrentTask();
+            updateNextEvent();
         }, (err) => {
             console.error('Schedule error:', err);
             timeline.innerHTML = '<div class="timeline-loading">Error al cargar.</div>';
@@ -306,46 +319,12 @@ function loadDaySchedule(day) {
     scheduleUnsubscribes.push(unsubscribe);
 }
 
-function getDefaultSchedule(day) {
-    const isCompetitionDay = day >= '2026-08-24' && day <= '2026-08-27';
-    const baseEvents = [
-        { time: '07:00', title: 'Despertar', icon: '⏰', type: 'team' },
-        { time: '07:30', title: 'Desayuno', icon: '🍳', type: 'meal' },
-        { time: '08:15', title: 'Reunión de equipo', icon: '📋', type: 'meeting' },
-        { time: '08:45', title: 'Salida al venue', icon: '🚌', type: 'travel' },
-    ];
-    const afternoonEvents = [
-        { time: '12:30', title: 'Almuerzo', icon: '🍔', type: 'meal' },
-        { time: '18:30', title: 'Cena', icon: '🍽️', type: 'meal' },
-        { time: '20:00', title: 'Reunión de cierre', icon: '📋', type: 'meeting' },
-    ];
-    const competitionBlocks = [
-        { time: '09:00', title: 'Technical Inspection', icon: '🔧', type: 'competition' },
-        { time: '11:00', title: 'Dynamic Events', icon: '🏁', type: 'competition' },
-        { time: '14:00', title: 'Carreras', icon: '🏎️', type: 'competition' },
-    ];
-    const preCompBlocks = [
-        { time: '09:00', title: 'Ensamblaje', icon: '🔧', type: 'team' },
-        { time: '11:00', title: 'Preparación técnica', icon: '⚙️', type: 'team' },
-        { time: '14:00', title: 'Pruebas y ajustes', icon: '🔩', type: 'team' },
-    ];
-
-    const events = [...baseEvents];
-    events.push(...(isCompetitionDay ? competitionBlocks : preCompBlocks));
-    events.push(...afternoonEvents);
-    events.sort((a, b) => a.time.localeCompare(b.time));
-
-    return {
-        events: events.map((e, i) => ({
-            id: 'block_' + i,
-            start: e.time,
-            end: String(parseInt(e.time) + 1).padStart(2,'0') + ':00',
-            title: e.title,
-            icon: e.icon || '📋',
-            type: e.type || 'team',
-            assignments: {}
-        }))
-    };
+function addMinutesToTime(timeStr, minutes) {
+    const [h, m] = timeStr.split(':').map(Number);
+    const total = h * 60 + m + minutes;
+    const newH = Math.floor(total / 60);
+    const newM = total % 60;
+    return String(newH).padStart(2, '0') + ':' + String(newM).padStart(2, '0');
 }
 
 function renderTimeline(day, data) {

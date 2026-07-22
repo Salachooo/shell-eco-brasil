@@ -77,14 +77,16 @@ function updateAdminClock() {
 // =============================================
 // INIT
 // =============================================
+let adminActivities = [];
+
 function initAdmin() {
     setupAdminTabs();
     loadAdminMembers();
+    loadAdminActivities();
     setupDashboardDaySelect();
-    setupAssignDaySelect();
-    setupEventsDaySelect();
+    setupActivitiesDaySelect();
+    setupActivityForm();
     setupAssignForm();
-    setupEventForm();
     setupMemberForm();
 }
 
@@ -96,8 +98,7 @@ function setupAdminTabs() {
             document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
             document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
             if (tab.dataset.tab === 'dashboard') refreshDashboard();
-            if (tab.dataset.tab === 'assignments') refreshAssignments();
-            if (tab.dataset.tab === 'events') refreshEventsList();
+            if (tab.dataset.tab === 'activities') refreshActivitiesList();
             if (tab.dataset.tab === 'members') refreshMembersList();
         });
     });
@@ -224,6 +225,237 @@ document.getElementById('memberForm').addEventListener('submit', async (e) => {
 });
 
 // =============================================
+// ACTIVITIES COLLECTION
+// =============================================
+function loadAdminActivities() {
+    db.collection('activities').orderBy('date').orderBy('time').onSnapshot((snapshot) => {
+        adminActivities = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            data.id = doc.id;
+            adminActivities.push(data);
+        });
+        refreshActivitiesList();
+        refreshDashboard();
+    });
+}
+
+// =============================================
+// ACTIVITIES DAY SELECT
+// =============================================
+function setupActivitiesDaySelect() {
+    document.getElementById('activitiesDaySelect').addEventListener('change', () => {
+        refreshActivitiesList();
+        populateActivitySelect();
+    });
+}
+
+function populateActivitySelect() {
+    const day = document.getElementById('activitiesDaySelect').value;
+    const select = document.getElementById('assignActivitySelect');
+    const dayActivities = adminActivities.filter(a => a.date === day);
+
+    select.innerHTML = '<option value="">Seleccionar actividad...</option>';
+    dayActivities.forEach(a => {
+        select.innerHTML += `<option value="${a.id}">${a.time} - ${a.title}</option>`;
+    });
+
+    if (dayActivities.length > 0) {
+        select.dispatchEvent(new Event('change'));
+    } else {
+        document.getElementById('assignFormContainer').style.display = 'none';
+        document.getElementById('activityAssignmentsList').innerHTML = '';
+    }
+}
+
+// =============================================
+// ACTIVITY FORM
+// =============================================
+function setupActivityForm() {
+    document.getElementById('activityForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const date = document.getElementById('activityDate').value;
+        const time = document.getElementById('activityTime').value;
+        const duration = parseInt(document.getElementById('activityDuration').value) || 120;
+        const title = document.getElementById('activityTitle').value.trim();
+        const type = document.getElementById('activityType').value;
+        const icon = document.getElementById('activityIcon').value.trim() || '📋';
+        const btn = e.target.querySelector('.btn');
+
+        if (!date || !time || !title) { alert('Completa fecha, hora y título'); return; }
+        btn.classList.add('loading');
+
+        try {
+            await db.collection('activities').add({
+                date: date,
+                time: time,
+                duration: duration,
+                title: title,
+                type: type,
+                icon: icon,
+                assignments: {}
+            });
+            document.getElementById('activityForm').reset();
+            document.getElementById('activityDuration').value = 120;
+            alert('✅ Actividad creada');
+        } catch (err) { alert('Error: ' + err.message); }
+        btn.classList.remove('loading');
+    });
+
+    // Set default date to selected day
+    const daySelect = document.getElementById('activitiesDaySelect');
+    document.getElementById('activityDate').value = daySelect.value;
+    daySelect.addEventListener('change', () => {
+        document.getElementById('activityDate').value = daySelect.value;
+    });
+}
+
+// =============================================
+// ACTIVITIES LIST
+// =============================================
+function refreshActivitiesList() {
+    const day = document.getElementById('activitiesDaySelect').value;
+    const dayActivities = adminActivities.filter(a => a.date === day);
+    const container = document.getElementById('activitiesListContent');
+
+    if (!dayActivities.length) {
+        container.innerHTML = '<p class="text-muted">No hay actividades para este día.</p>';
+        populateActivitySelect();
+        return;
+    }
+
+    let html = '';
+    dayActivities.forEach(activity => {
+        const typeIcons = {
+            team_activity: '👥', meeting: '📋', competition: '🏁', practice: '🔧',
+            meal: '🍽️', free_time: '⏸️', hotel_departure: '🏨', venue_departure: '🏁'
+        };
+        const assignCount = Object.keys(activity.assignments || {}).length;
+        html += `<div class="activity-item" style="margin-bottom:8px;padding:10px;background:var(--bg-card);border-radius:8px;border:1px solid var(--border-color)">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <div>
+                    <strong style="color:var(--accent-primary)">${activity.time} (${activity.duration}min)</strong>
+                    <div style="font-weight:600">${activity.icon || typeIcons[activity.type] || '📋'} ${activity.title}</div>
+                    <div style="font-size:11px;color:var(--text-muted)">${assignCount} asignaciones</div>
+                </div>
+                <button class="btn-icon-small" onclick="deleteActivity('${activity.id}')" title="Eliminar">🗑️</button>
+            </div>
+        </div>`;
+    });
+    container.innerHTML = html;
+    populateActivitySelect();
+}
+
+async function deleteActivity(id) {
+    if (!confirm('¿Eliminar esta actividad?')) return;
+    try {
+        await db.collection('activities').doc(id).delete();
+    } catch (err) { alert('Error: ' + err.message); }
+}
+
+// =============================================
+// ASSIGN TO ACTIVITY
+// =============================================
+function setupAssignForm() {
+    const select = document.getElementById('assignActivitySelect');
+    select.addEventListener('change', () => {
+        const activityId = select.value;
+        if (activityId) {
+            document.getElementById('assignFormContainer').style.display = 'block';
+            renderActivityAssignments(activityId);
+        } else {
+            document.getElementById('assignFormContainer').style.display = 'none';
+        }
+    });
+
+    document.getElementById('assignTarget').addEventListener('change', () => {
+        document.getElementById('assignPersonGroup').style.display =
+            document.getElementById('assignTarget').value === 'individual' ? 'block' : 'none';
+    });
+
+    document.getElementById('assignForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const activityId = document.getElementById('assignActivitySelect').value;
+        const target = document.getElementById('assignTarget').value;
+        const person = document.getElementById('assignPerson').value;
+        const role = document.getElementById('assignRole').value.trim();
+        const btn = e.target.querySelector('.btn');
+
+        if (!activityId || !target || !role) { alert('Completa todos los campos'); return; }
+        btn.classList.add('loading');
+
+        try {
+            const docRef = db.collection('activities').doc(activityId);
+            const doc = await docRef.get();
+            if (!doc.exists) { alert('Actividad no encontrada'); return; }
+
+            const data = doc.data();
+            if (!data.assignments) data.assignments = {};
+
+            let key;
+            if (target === 'all') key = 'all';
+            else if (target === 'admins') key = 'admins';
+            else if (target.startsWith('group_')) key = target;
+            else if (target === 'individual') {
+                if (!person) { alert('Selecciona una persona'); return; }
+                key = 'person_' + person;
+            }
+
+            data.assignments[key] = role;
+            await docRef.update({ assignments: data.assignments });
+            document.getElementById('assignForm').reset();
+            document.getElementById('assignPersonGroup').style.display = 'none';
+            renderActivityAssignments(activityId);
+            alert('✅ Asignación guardada');
+        } catch (err) { alert('Error: ' + err.message); }
+        btn.classList.remove('loading');
+    });
+}
+
+function renderActivityAssignments(activityId) {
+    const activity = adminActivities.find(a => a.id === activityId);
+    const container = document.getElementById('activityAssignmentsList');
+    if (!activity || !activity.assignments) {
+        container.innerHTML = '<p class="text-muted">Sin asignaciones.</p>';
+        return;
+    }
+
+    const entries = Object.entries(activity.assignments);
+    if (!entries.length) {
+        container.innerHTML = '<p class="text-muted">Sin asignaciones.</p>';
+        return;
+    }
+
+    let html = '<div style="display:flex;flex-wrap:gap;gap:6px;flex-direction:column">';
+    entries.forEach(([key, value]) => {
+        let target = key === 'all' ? '👥 Todos' :
+                     key === 'admins' ? '⭐ Admins' :
+                     key.startsWith('group_') ? '🅰️ ' + key.replace('group_', '').charAt(0).toUpperCase() + key.replace('group_', '').slice(1) :
+                     key.startsWith('person_') ? '👤 ' + key.replace('person_', '') : key;
+        html += `<div style="font-size:13px;padding:4px 8px;background:var(--bg-secondary);border-radius:6px">
+            <strong>${target}</strong>: ${value}
+            <button class="btn-icon-small" onclick="removeAssignment('${activityId}','${key}')" style="float:right;font-size:10px">✖</button>
+        </div>`;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+async function removeAssignment(activityId, key) {
+    try {
+        const docRef = db.collection('activities').doc(activityId);
+        const doc = await docRef.get();
+        if (doc.exists) {
+            const data = doc.data();
+            if (data.assignments) {
+                delete data.assignments[key];
+                await docRef.update({ assignments: data.assignments });
+            }
+        }
+    } catch (err) { alert('Error: ' + err.message); }
+}
+
+// =============================================
 // DASHBOARD
 // =============================================
 function setupDashboardDaySelect() {
@@ -239,224 +471,45 @@ function refreshDashboard() {
         return;
     }
 
-    db.collection('schedule').doc(day).get().then((doc) => {
-        const data = doc.exists ? doc.data() : null;
-        const blocks = data ? data.events : [];
-        const now = new Date();
+    const dayActivities = adminActivities.filter(a => a.date === day);
+    const now = new Date();
+    const nowBrasil = new Date(now.toLocaleString('en-US', { timeZone: BRASIL_TIMEZONE }));
 
-        let html = '';
-        adminMembers.forEach(member => {
-            let currentTask = 'Sin tarea';
-            let currentBlock = '—';
-            const groupColors = { alpha: '#e74c3c', beta: '#3498db', gamma: '#2ecc71', delta: '#f39c12' };
+    let html = '';
+    adminMembers.forEach(member => {
+        let currentTask = 'Sin tarea';
+        let currentActivity = '—';
+        const groupColors = { alpha: '#e74c3c', beta: '#3498db', gamma: '#2ecc71', delta: '#f39c12' };
 
-            for (const block of blocks) {
-                if (isBlockActiveNow(block, day, now)) {
-                    const a = block.assignments || {};
-                    if (a['person_' + member.id]) { currentTask = a['person_' + member.id]; currentBlock = block.title; break; }
-                    if (a['group_' + member.group]) { currentTask = a['group_' + member.group]; currentBlock = block.title; break; }
-                    if (a['all']) { currentTask = a['all']; currentBlock = block.title; break; }
-                }
+        for (const activity of dayActivities) {
+            const activityStart = parseActivityTime(activity.time, day);
+            const activityEnd = new Date(activityStart.getTime() + (activity.duration || 120) * 60000);
+            if (nowBrasil.getTime() >= activityStart.getTime() && nowBrasil.getTime() < activityEnd.getTime()) {
+                const a = activity.assignments || {};
+                if (a['person_' + member.id]) { currentTask = a['person_' + member.id]; currentActivity = activity.title; break; }
+                if (a['group_' + member.group]) { currentTask = a['group_' + member.group]; currentActivity = activity.title; break; }
+                if (a['all']) { currentTask = a['all']; currentActivity = activity.title; break; }
+                if (a['admins'] && member.isAdmin) { currentTask = a['admins']; currentActivity = activity.title; break; }
             }
+        }
 
-            const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${groupColors[member.group] || '#666'};margin-right:6px"></span>`;
-            html += `<tr>
-                <td>${dot}${member.name || member.id} ${member.isAdmin ? '⭐' : ''}</td>
-                <td><span style="text-transform:uppercase;font-size:12px;font-weight:600;color:${groupColors[member.group]}">${member.group}</span></td>
-                <td>${currentTask}</td>
-                <td style="font-size:12px;color:var(--text-muted)">${currentBlock}</td>
-            </tr>`;
-        });
-        tbody.innerHTML = html;
-    }).catch(() => {
-        tbody.innerHTML = '<tr><td colspan="4" class="loading-row">Error al cargar.</td></tr>';
+        const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${groupColors[member.group] || '#666'};margin-right:6px"></span>`;
+        html += `<tr>
+            <td>${dot}${member.name || member.id} ${member.isAdmin ? '⭐' : ''}</td>
+            <td><span style="text-transform:uppercase;font-size:12px;font-weight:600;color:${groupColors[member.group]}">${member.group}</span></td>
+            <td>${currentTask}</td>
+            <td style="font-size:12px;color:var(--text-muted)">${currentActivity}</td>
+        </tr>`;
     });
+    tbody.innerHTML = html;
 }
 
-function isBlockActiveNow(block, day, now) {
-    const [h1, m1] = (block.start || '00:00').split(':').map(Number);
-    const [h2, m2] = (block.end || '23:59').split(':').map(Number);
-    const start = new Date(day + 'T12:00:00'); start.setHours(h1, m1, 0, 0);
-    const end = new Date(day + 'T12:00:00'); end.setHours(h2, m2, 0, 0);
-    return now.getTime() >= start.getTime() && now.getTime() < end.getTime();
+function parseActivityTime(timeStr, dayStr) {
+    const [h, m] = timeStr.split(':').map(Number);
+    const d = new Date(dayStr + 'T12:00:00');
+    d.setHours(h, m, 0, 0);
+    return d;
 }
 
-// =============================================
-// ASSIGNMENTS
-// =============================================
-function setupAssignDaySelect() {
-    document.getElementById('assignDaySelect').addEventListener('change', () => {
-        refreshAssignments();
-        populateBlockSelect();
-    });
-}
-
-function populateBlockSelect() {
-    const day = document.getElementById('assignDaySelect').value;
-    const select = document.getElementById('assignBlock');
-
-    db.collection('schedule').doc(day).get().then((doc) => {
-        const blocks = doc.exists ? doc.data().events : getDefaultBlocks(day);
-        select.innerHTML = '<option value="">Seleccionar bloque...</option>';
-        blocks.forEach(b => {
-            select.innerHTML += `<option value="${b.id}">${b.start} - ${b.end} | ${b.title}</option>`;
-        });
-    });
-}
-
-function getDefaultBlocks(day) {
-    const isComp = day >= '2026-08-24' && day <= '2026-08-27';
-    const titles = isComp ? [
-        ['06:30','07:00','Despertar'], ['07:00','07:30','Desayuno'], ['07:30','08:15','Reunión'],
-        ['08:15','08:45','Salida'], ['09:00','11:00','Technical Inspection'], ['11:00','12:30','Dynamic Events'],
-        ['12:30','13:30','Almuerzo'], ['14:00','17:00','Carreras'], ['17:00','18:30','Tiempo libre'],
-        ['18:30','19:30','Cena'], ['20:00','21:00','Reunión']
-    ] : [
-        ['06:30','07:00','Despertar'], ['07:00','07:30','Desayuno'], ['07:30','08:15','Reunión'],
-        ['08:15','08:45','Salida'], ['09:00','11:00','Ensamblaje'], ['11:00','12:30','Preparación técnica'],
-        ['12:30','13:30','Almuerzo'], ['14:00','17:00','Pruebas'], ['17:00','18:30','Tiempo libre'],
-        ['18:30','19:30','Cena'], ['20:00','21:00','Reunión']
-    ];
-    return titles.map((t, i) => ({ id: 'block_' + i, start: t[0], end: t[1], title: t[2], icon: '📋', type: 'team', assignments: {} }));
-}
-
-function refreshAssignments() {
-    const day = document.getElementById('assignDaySelect').value;
-    populateBlockSelect();
-
-    db.collection('schedule').doc(day).get().then((doc) => {
-        const blocks = doc.exists ? doc.data().events : [];
-        const container = document.getElementById('assignListContent');
-        if (!blocks.length) { container.innerHTML = '<p class="text-muted">No hay bloques.</p>'; return; }
-
-        let html = '';
-        blocks.forEach(block => {
-            const entries = Object.entries(block.assignments || {});
-            if (!entries.length) return;
-            html += `<div style="margin-bottom:8px;padding:8px;background:var(--bg-card);border-radius:8px;border:1px solid var(--border-color)">
-                <strong style="font-size:13px;color:var(--accent-primary)">${block.start} - ${block.end}: ${block.title}</strong>`;
-            entries.forEach(([key, value]) => {
-                let target = key.replace('person_', '👤 ').replace('group_', '👥 Grupo ').replace('all', '👥 Todos');
-                html += `<div style="font-size:13px;padding:2px 0">${target}: ${value}</div>`;
-            });
-            html += `</div>`;
-        });
-        container.innerHTML = html || '<p class="text-muted">Sin asignaciones.</p>';
-    });
-}
-
-// =============================================
-// ASSIGN FORM
-// =============================================
-function setupAssignForm() {
-    document.getElementById('assignTarget').addEventListener('change', () => {
-        document.getElementById('assignPersonGroup').style.display =
-            document.getElementById('assignTarget').value === 'individual' ? 'block' : 'none';
-    });
-
-    document.getElementById('assignForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const day = document.getElementById('assignDaySelect').value;
-        const blockId = document.getElementById('assignBlock').value;
-        const target = document.getElementById('assignTarget').value;
-        const person = document.getElementById('assignPerson').value;
-        const role = document.getElementById('assignRole').value.trim();
-        const btn = e.target.querySelector('.btn');
-
-        if (!blockId || !target || !role) { alert('Completa todos los campos'); return; }
-        btn.classList.add('loading');
-
-        try {
-            const docRef = db.collection('schedule').doc(day);
-            const doc = await docRef.get();
-            const events = doc.exists ? [...doc.data().events] : getDefaultBlocks(day);
-            const idx = events.findIndex(b => b.id === blockId);
-            if (idx === -1) { alert('Bloque no encontrado'); btn.classList.remove('loading'); return; }
-
-            const block = { ...events[idx] };
-            if (!block.assignments) block.assignments = {};
-
-            let key = target === 'all' ? 'all' : target.startsWith('group_') ? target : 'person_' + person;
-            if (target === 'individual' && !person) { alert('Selecciona una persona'); btn.classList.remove('loading'); return; }
-
-            block.assignments[key] = role;
-            events[idx] = block;
-            await docRef.set({ events }, { merge: true });
-            document.getElementById('assignForm').reset();
-            document.getElementById('assignPersonGroup').style.display = 'none';
-            refreshAssignments();
-            alert('✅ Asignación guardada');
-        } catch (err) { alert('Error: ' + err.message); }
-        btn.classList.remove('loading');
-    });
-}
-
-// =============================================
-// EVENTS
-// =============================================
-function setupEventsDaySelect() {
-    document.getElementById('eventsDaySelect').addEventListener('change', refreshEventsList);
-}
-
-function refreshEventsList() {
-    const day = document.getElementById('eventsDaySelect').value;
-    db.collection('schedule').doc(day).get().then((doc) => {
-        const blocks = doc.exists ? doc.data().events : [];
-        const container = document.getElementById('eventsListContent');
-        if (!blocks.length) { container.innerHTML = '<p class="text-muted">No hay eventos.</p>'; return; }
-
-        let html = '';
-        blocks.forEach((block, i) => {
-            html += `<div class="event-item">
-                <div class="event-item-info">
-                    <div><span class="event-item-time">${block.start} - ${block.end}</span> <span>${block.icon || '📋'}</span></div>
-                    <div style="font-weight:600">${block.title}</div>
-                </div>
-                <div class="event-item-actions">
-                    <button class="btn-icon-small" onclick="deleteEvent('${day}', ${i})" title="Eliminar">🗑️</button>
-                </div>
-            </div>`;
-        });
-        container.innerHTML = html;
-    });
-}
-
-async function deleteEvent(day, index) {
-    if (!confirm('¿Eliminar este evento?')) return;
-    const docRef = db.collection('schedule').doc(day);
-    const doc = await docRef.get();
-    if (doc.exists) {
-        const data = doc.data();
-        data.events.splice(index, 1);
-        await docRef.set(data);
-    }
-}
-
-document.getElementById('eventForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const day = document.getElementById('eventsDaySelect').value;
-    const time = document.getElementById('eventTime').value;
-    const title = document.getElementById('eventTitle').value.trim();
-    const icon = document.getElementById('eventIcon').value.trim() || '📋';
-    const type = document.getElementById('eventType').value;
-    const btn = e.target.querySelector('.btn');
-
-    if (!time || !title) { alert('Completa hora y título'); return; }
-    btn.classList.add('loading');
-
-    try {
-        const docRef = db.collection('schedule').doc(day);
-        const doc = await docRef.get();
-        const events = doc.exists ? [...doc.data().events] : [];
-        const endHour = parseInt(time.split(':')[0]) + 1;
-        events.push({ id: 'block_' + Date.now(), start: time, end: String(endHour).padStart(2,'0') + ':' + time.split(':')[1], title, icon, type, assignments: {} });
-        events.sort((a, b) => a.start.localeCompare(b.start));
-        await docRef.set({ events }, { merge: true });
-        document.getElementById('eventForm').reset();
-        refreshEventsList();
-        alert('✅ Evento agregado');
-    } catch (err) { alert('Error: ' + err.message); }
-    btn.classList.remove('loading');
-});
 
 console.log('SEM Brasil 2026 - Admin Panel loaded');

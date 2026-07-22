@@ -58,8 +58,7 @@
             </div>
             <nav class="admin-tabs" id="adminTabs">
                 <button class="admin-tab active" data-tab="dashboard">📊 Dashboard</button>
-                <button class="admin-tab" data-tab="assignments">📝 Asignaciones</button>
-                <button class="admin-tab" data-tab="events">📅 Eventos</button>
+                <button class="admin-tab" data-tab="activities">📅 Actividades</button>
                 <button class="admin-tab" data-tab="members">👥 Miembros</button>
             </nav>
         </header>
@@ -81,7 +80,7 @@
                 </div>
                 <div class="dashboard-table-container">
                     <table class="dashboard-table">
-                        <thead><tr><th>Persona</th><th>Grupo</th><th>Tarea Actual</th><th>Bloque</th></tr></thead>
+                        <thead><tr><th>Persona</th><th>Grupo</th><th>Tarea Actual</th><th>Actividad</th></tr></thead>
                         <tbody id="dashboardBody"><tr><td colspan="4" class="loading-row">Cargando...</td></tr></tbody>
                     </table>
                 </div>
@@ -93,11 +92,11 @@
                 </div>
             </div>
 
-            <!-- ASSIGNMENTS TAB -->
-            <div class="admin-tab-content" id="tab-assignments">
+            <!-- ACTIVITIES TAB -->
+            <div class="admin-tab-content" id="tab-activities">
                 <div class="section-header">
-                    <h2>📝 Asignar Tareas</h2>
-                    <select id="assignDaySelect">
+                    <h2>📅 Actividades</h2>
+                    <select id="activitiesDaySelect">
                         <option value="2026-08-21">21 - Llegada</option>
                         <option value="2026-08-22">22 - Preparación</option>
                         <option value="2026-08-23">23 - Ensamblaje</option>
@@ -107,86 +106,89 @@
                         <option value="2026-08-27">27 - Competencia D4</option>
                     </select>
                 </div>
-                <div class="assign-form-card">
-                    <h3>Nueva Asignación</h3>
-                    <form id="assignForm">
-                        <div class="input-group">
-                            <label>Bloque</label>
-                            <select id="assignBlock" required><option value="">Seleccionar...</option></select>
-                        </div>
-                        <div class="input-group">
-                            <label>Asignar a</label>
-                            <select id="assignTarget" required>
-                                <option value="">Seleccionar...</option>
-                                <option value="all">👥 Todos</option>
-                                <option value="group_alpha">🅰️ Alpha</option>
-                                <option value="group_beta">🅱️ Beta</option>
-                                <option value="group_gamma">🅲 Gamma</option>
-                                <option value="group_delta">🅳 Delta</option>
-                                <option value="individual">👤 Persona</option>
-                            </select>
-                        </div>
-                        <div class="input-group" id="assignPersonGroup" style="display:none;">
-                            <label>Persona</label>
-                            <select id="assignPerson"><option value="">Seleccionar...</option></select>
-                        </div>
-                        <div class="input-group">
-                            <label>Tarea</label>
-                            <input type="text" id="assignRole" placeholder="Ej: Managing Paddock" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-full">Asignar</button>
-                    </form>
-                </div>
-                <div class="assign-list">
-                    <h3>Asignaciones</h3>
-                    <div id="assignListContent"><p class="text-muted">Selecciona un día.</p></div>
-                </div>
-            </div>
 
-            <!-- EVENTS TAB -->
-            <div class="admin-tab-content" id="tab-events">
-                <div class="section-header">
-                    <h2>📅 Eventos de Equipo</h2>
-                    <select id="eventsDaySelect">
-                        <option value="2026-08-21">21 - Llegada</option>
-                        <option value="2026-08-22">22 - Preparación</option>
-                        <option value="2026-08-23">23 - Ensamblaje</option>
-                        <option value="2026-08-24" selected>24 - Competencia D1</option>
-                        <option value="2026-08-25">25 - Competencia D2</option>
-                        <option value="2026-08-26">26 - Competencia D3</option>
-                        <option value="2026-08-27">27 - Competencia D4</option>
-                    </select>
-                </div>
-                <div class="events-form-card">
-                    <h3>Nuevo Evento</h3>
-                    <form id="eventForm">
+                <!-- CREATE ACTIVITY CARD -->
+                <div class="activity-form-card">
+                    <h3>➕ Nueva Actividad</h3>
+                    <form id="activityForm">
+                        <div class="input-group">
+                            <label>Fecha</label>
+                            <input type="date" id="activityDate" required>
+                        </div>
                         <div class="input-group">
                             <label>Hora</label>
-                            <input type="time" id="eventTime" required>
+                            <input type="time" id="activityTime" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Duración (min)</label>
+                            <input type="number" id="activityDuration" placeholder="120" min="15" step="15" value="120">
                         </div>
                         <div class="input-group">
                             <label>Título</label>
-                            <input type="text" id="eventTitle" placeholder="Ej: Desayuno" required>
-                        </div>
-                        <div class="input-group">
-                            <label>Icono</label>
-                            <input type="text" id="eventIcon" placeholder="🍳" maxlength="2">
+                            <input type="text" id="activityTitle" placeholder="Ej: Technical Inspection" required>
                         </div>
                         <div class="input-group">
                             <label>Tipo</label>
-                            <select id="eventType">
-                                <option value="team">👥 Equipo</option>
-                                <option value="competition">🏁 Competencia</option>
-                                <option value="meal">🍽️ Comida</option>
+                            <select id="activityType">
+                                <option value="team_activity">👥 Actividad Grupal</option>
                                 <option value="meeting">📋 Reunión</option>
+                                <option value="competition">🏁 Competencia</option>
+                                <option value="practice">🔧 Prácticas</option>
+                                <option value="meal">🍽️ Comida</option>
+                                <option value="free_time">⏸️ Tiempo Libre</option>
+                                <option value="hotel_departure">🏨 Salida Hotel</option>
+                                <option value="venue_departure">🏁 Salida Venue</option>
                             </select>
                         </div>
-                        <button type="submit" class="btn btn-primary btn-full">Agregar</button>
+                        <div class="input-group">
+                            <label>Icono</label>
+                            <input type="text" id="activityIcon" placeholder="🔧" maxlength="2">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full">Crear Actividad</button>
                     </form>
                 </div>
-                <div class="events-list">
-                    <h3>Eventos del Día</h3>
-                    <div id="eventsListContent"><p class="text-muted">Selecciona un día.</p></div>
+
+                <!-- ASSIGNMENTS SECTION -->
+                <div class="assign-section">
+                    <h3>📝 Asignaciones por Actividad</h3>
+                    <div class="assign-toolbar">
+                        <select id="assignActivitySelect">
+                            <option value="">Seleccionar actividad...</option>
+                        </select>
+                    </div>
+                    <div id="assignFormContainer" style="display:none">
+                        <form id="assignForm">
+                            <div class="input-group">
+                                <label>Asignar a</label>
+                                <select id="assignTarget" required>
+                                    <option value="">Seleccionar...</option>
+                                    <option value="all">👥 Todos</option>
+                                    <option value="admins">⭐ Admins</option>
+                                    <option value="group_alpha">🅰️ Grupo Alpha</option>
+                                    <option value="group_beta">🅱️ Grupo Beta</option>
+                                    <option value="group_gamma">🅶 Grupo Gamma</option>
+                                    <option value="group_delta">🅳 Grupo Delta</option>
+                                    <option value="individual">👤 Persona Específica</option>
+                                </select>
+                            </div>
+                            <div class="input-group" id="assignPersonGroup" style="display:none;">
+                                <label>Persona</label>
+                                <select id="assignPerson"><option value="">Seleccionar...</option></select>
+                            </div>
+                            <div class="input-group">
+                                <label>Tarea</label>
+                                <input type="text" id="assignRole" placeholder="Ej: Managing Paddock" required>
+                            </div>
+                            <button type="submit" class="btn btn-outline btn-full">Asignar</button>
+                        </form>
+                    </div>
+                    <div id="activityAssignmentsList" style="margin-top:12px"></div>
+                </div>
+
+                <!-- ACTIVITIES LIST -->
+                <div class="activities-list-section">
+                    <h3>📋 Actividades del Día</h3>
+                    <div id="activitiesListContent"><p class="text-muted">Selecciona un día.</p></div>
                 </div>
             </div>
 
@@ -230,8 +232,8 @@
 
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-    <script src="firebase-config.js?v=3"></script>
-    <script src="seed-data.js?v=3"></script>
-    <script src="admin.js?v=3"></script>
+    <script src="firebase-config.js?v=4"></script>
+    <script src="seed-data.js?v=4"></script>
+    <script src="admin.js?v=4"></script>
 </body>
 </html>
