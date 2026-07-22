@@ -2,12 +2,12 @@
   "name": "SEM Brasil 2026 - Team Schedule",
   "short_name": "SEM Team",
   "description": "Shell Eco-marathon Brasil 2026 - Team schedule and task management",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#0f0f1a",
   "theme_color": "#1a1a2e",
   "orientation": "portrait",
-  "scope": "/",
+  "scope": "./",
   "icons": [
     {
       "src": "icons/icon-192.png",

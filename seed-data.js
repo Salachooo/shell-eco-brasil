@@ -143,9 +143,12 @@ async function seedActivities() {
             time: activity.time,
             duration: activity.duration,
             title: activity.title,
+            description: `Actividad general: ${activity.title}`,
             type: activity.type,
             icon: activity.icon,
-            assignments: {}
+            assignments: {},
+            personalSubtasks: {},
+            completions: {}
         });
         created++;
     }

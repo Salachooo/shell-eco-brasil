@@ -3,7 +3,8 @@
 // =============================================
 
 let currentUser = null;
-let currentDay = '2026-08-24';
+const SCHEDULE_DAYS = ['2026-08-21','2026-08-22','2026-08-23','2026-08-24','2026-08-25','2026-08-26','2026-08-27'];
+let currentDay = getDefaultScheduleDay();
 let allMembers = [];
 let allScheduleData = {};
 let clockInterval = null;
@@ -27,6 +28,26 @@ function getDayName(dateStr) {
 }
 
 function getShortDayName(dateStr) { return getDayName(dateStr).substring(0, 3).toUpperCase(); }
+
+function getBrasilTodayISO() {
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: BRASIL_TIMEZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(new Date());
+}
+
+function getDefaultScheduleDay() {
+    const today = getBrasilTodayISO();
+    if (today <= SCHEDULE_DAYS[0]) return SCHEDULE_DAYS[0];
+    if (today >= SCHEDULE_DAYS[SCHEDULE_DAYS.length - 1]) return SCHEDULE_DAYS[SCHEDULE_DAYS.length - 1];
+
+    for (const day of SCHEDULE_DAYS) {
+        if (day >= today) return day;
+    }
+    return SCHEDULE_DAYS[0];
+}
 
 function nameToId(name) {
     return name.toLowerCase()
@@ -197,11 +218,13 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
 // =============================================
 function startApp() {
     document.getElementById('userName').textContent = currentUser.name;
+    currentDay = getDefaultScheduleDay();
     startClock();
     loadMembers();
-    loadDaySchedule(currentDay);
     setupDayNav();
     setupBottomNav();
+    setupActivityDetailModal();
+    loadDaySchedule(currentDay);
 }
 
 // =============================================
@@ -241,13 +264,19 @@ function setupDayNav() {
         });
     });
 
-    const today = new Date();
-    const todayStr = today.toISOString().substring(0, 10);
+    const todayStr = getDefaultScheduleDay();
+    let selected = false;
     document.querySelectorAll('.day-btn').forEach(btn => {
         if (btn.dataset.day === todayStr) {
+            selected = true;
             btn.click();
         }
     });
+
+    if (!selected) {
+        const first = document.querySelector('.day-btn');
+        if (first) first.click();
+    }
 }
 
 // =============================================
@@ -305,7 +334,10 @@ function loadDaySchedule(day) {
                 title: a.title,
                 icon: a.icon || '📋',
                 type: a.type || 'team',
-                assignments: a.assignments || {}
+                description: a.description || '',
+                assignments: a.assignments || {},
+                personalSubtasks: a.personalSubtasks || {},
+                completions: a.completions || {}
             }));
 
             const data = { events: blocks };
@@ -339,30 +371,38 @@ function addMinutesToTime(timeStr, minutes) {
 
 function renderTimeline(day, data) {
     const timeline = document.getElementById('timeline');
-    const blocks = data.events || [];
+    const blocks = getVisibleBlocksForCurrentUser(data.events || []);
     const now = new Date();
 
     if (!blocks.length) {
-        timeline.innerHTML = '<div class="timeline-loading">No hay eventos.</div>';
+        timeline.innerHTML = '<div class="timeline-loading">No tienes tareas asignadas para este día.</div>';
         return;
     }
 
     let html = '';
     blocks.forEach(block => {
         const isActive = isBlockActive(block, day, now);
-        const assignment = getUserAssignment(block);
+        const assignmentInfo = getUserAssignmentInfo(block);
+        const assignment = assignmentInfo.role;
+        const isCompleted = isTaskCompleted(block, assignmentInfo.key, currentUser.id);
 
-        html += `<div class="timeline-item ${isActive ? 'active' : ''}">
+        html += `<div class="timeline-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}" data-activity-id="${block.id}">
             <div class="timeline-item-header">
                 <span class="timeline-item-time">${block.start} - ${block.end}</span>
                 <span class="timeline-item-icon">${block.icon || '📋'}</span>
             </div>
             <div class="timeline-item-title">${block.title}</div>
             ${assignment ? `<div class="timeline-item-role">${assignment}</div>` : ''}
+            <div class="timeline-item-subtitle">${isCompleted ? '✅ Completada' : '⏳ Pendiente'}</div>
         </div>`;
     });
 
     timeline.innerHTML = html;
+    timeline.querySelectorAll('.timeline-item').forEach(item => {
+        item.addEventListener('click', () => {
+            openActivityDetail(item.dataset.activityId);
+        });
+    });
 }
 
 function isBlockActive(block, day, now) {
@@ -374,13 +414,36 @@ function isBlockActive(block, day, now) {
 }
 
 function getUserAssignment(block) {
-    if (!currentUser) return null;
+    const info = getUserAssignmentInfo(block);
+    return info.role;
+}
+
+function getUserAssignmentInfo(block, user = currentUser) {
+    if (!user) return { key: null, role: null };
     const a = block.assignments || {};
-    if (a['person_' + currentUser.id]) return a['person_' + currentUser.id];
-    if (a['group_' + currentUser.group]) return a['group_' + currentUser.group];
-    if (a['admins'] && currentUser.isAdmin) return a['admins'];
-    if (a['all']) return a['all'];
-    return null;
+    if (a['person_' + user.id]) return { key: 'person_' + user.id, role: a['person_' + user.id] };
+    if (a['group_' + user.group]) return { key: 'group_' + user.group, role: a['group_' + user.group] };
+    if (a['admins'] && user.isAdmin) return { key: 'admins', role: a['admins'] };
+    if (a['all']) return { key: 'all', role: a['all'] };
+
+    const personalSubtask = block.personalSubtasks && block.personalSubtasks[user.id];
+    if (personalSubtask) return { key: 'person_' + user.id, role: personalSubtask };
+
+    return { key: null, role: null };
+}
+
+function getVisibleBlocksForCurrentUser(blocks) {
+    return blocks.filter(block => {
+        const info = getUserAssignmentInfo(block);
+        return !!info.role;
+    });
+}
+
+function isTaskCompleted(block, assignmentKey, userId) {
+    const completions = block.completions || {};
+    if (completions['task_person_' + userId] && completions['task_person_' + userId].completed) return true;
+    if (assignmentKey && completions[assignmentKey] && completions[assignmentKey].completed) return true;
+    return false;
 }
 
 // =============================================
@@ -394,8 +457,14 @@ function updateCurrentTask() {
         return;
     }
 
+    const visibleEvents = getVisibleBlocksForCurrentUser(data.events);
+    if (!visibleEvents.length) {
+        document.getElementById('currentTaskCard').style.display = 'none';
+        return;
+    }
+
     let activeBlock = null;
-    for (const block of data.events) {
+    for (const block of visibleEvents) {
         if (isBlockActive(block, currentDay, now)) { activeBlock = block; break; }
     }
 
@@ -408,7 +477,7 @@ function updateCurrentTask() {
         document.getElementById('currentTaskRole').textContent = getUserAssignment(activeBlock) ? `👤 ${getUserAssignment(activeBlock)}` : '';
     } else {
         let next = null;
-        for (const block of data.events) {
+        for (const block of visibleEvents) {
             if (now < parseTimeToDate(block.start, currentDay)) { next = block; break; }
         }
         if (next) {
@@ -437,8 +506,14 @@ function updateCountdown() {
     const data = allScheduleData[currentDay];
     if (!data || !data.events) return;
 
+    const visibleEvents = getVisibleBlocksForCurrentUser(data.events);
+    if (!visibleEvents.length) {
+        document.getElementById('nextEventBar').style.display = 'none';
+        return;
+    }
+
     let next = null;
-    for (const block of data.events) {
+    for (const block of visibleEvents) {
         if (now < parseTimeToDate(block.start, currentDay)) { next = block; break; }
     }
 
@@ -523,7 +598,7 @@ function getMemberCurrentTask(member, blocks) {
 // =============================================
 function loadTasksView() {
     const list = document.getElementById('tasksList');
-    const days = ['2026-08-21','2026-08-22','2026-08-23','2026-08-24','2026-08-25','2026-08-26','2026-08-27'];
+    const days = SCHEDULE_DAYS;
     let html = '';
 
     days.forEach(day => {
@@ -544,6 +619,137 @@ function loadTasksView() {
         });
     });
     list.innerHTML = html || '<div class="tasks-loading">No tienes tareas asignadas aún.</div>';
+}
+
+function setupActivityDetailModal() {
+    const closeBtn = document.getElementById('activityDetailClose');
+    const backdrop = document.getElementById('activityDetailModal');
+    if (closeBtn) closeBtn.addEventListener('click', closeActivityDetail);
+    if (backdrop) {
+        backdrop.addEventListener('click', (e) => {
+            if (e.target.id === 'activityDetailModal') closeActivityDetail();
+        });
+    }
+}
+
+function closeActivityDetail() {
+    document.getElementById('activityDetailModal').classList.remove('active');
+}
+
+function openActivityDetail(activityId) {
+    const data = allScheduleData[currentDay];
+    if (!data || !data.events) return;
+
+    const activity = data.events.find(e => e.id === activityId);
+    if (!activity) return;
+
+    const info = getUserAssignmentInfo(activity);
+    if (!info.role) return;
+
+    const generalDescription = activity.description || 'Sin descripción general.';
+    const personalDescription = activity.personalSubtasks && activity.personalSubtasks[currentUser.id]
+        ? activity.personalSubtasks[currentUser.id]
+        : null;
+
+    document.getElementById('activityDetailTitle').textContent = `${activity.icon || '📋'} ${activity.title}`;
+    document.getElementById('activityDetailTime').textContent = `${activity.start} - ${activity.end}`;
+    document.getElementById('activityDetailGeneral').textContent = generalDescription;
+    document.getElementById('activityDetailRole').textContent = info.role || 'Sin tarea específica';
+    document.getElementById('activityDetailPersonal').textContent = personalDescription || 'Sin subtarea personal';
+
+    const taskKey = 'task_person_' + currentUser.id;
+    const subtaskKey = 'subtask_person_' + currentUser.id;
+    const completions = activity.completions || {};
+
+    const taskCheck = document.getElementById('activityDetailTaskCheck');
+    const taskToggleBtn = document.getElementById('activityDetailTaskToggleBtn');
+    const subtaskCheckWrap = document.getElementById('activityDetailSubtaskWrap');
+    const subtaskCheck = document.getElementById('activityDetailSubtaskCheck');
+    const subtaskToggleBtn = document.getElementById('activityDetailSubtaskToggleBtn');
+    const groupCompleteBtn = document.getElementById('activityDetailGroupCompleteBtn');
+
+    taskCheck.checked = !!(completions[taskKey] && completions[taskKey].completed);
+    taskToggleBtn.onclick = () => toggleCompletionForCurrentUser(activity.id, taskKey, !taskCheck.checked);
+
+    if (personalDescription) {
+        subtaskCheckWrap.style.display = 'block';
+        subtaskCheck.checked = !!(completions[subtaskKey] && completions[subtaskKey].completed);
+        subtaskToggleBtn.onclick = () => toggleCompletionForCurrentUser(activity.id, subtaskKey, !subtaskCheck.checked);
+    } else {
+        subtaskCheckWrap.style.display = 'none';
+        subtaskToggleBtn.onclick = null;
+    }
+
+    if (currentUser.isAdmin && info.key && (info.key.startsWith('group_') || info.key === 'all' || info.key === 'admins')) {
+        groupCompleteBtn.style.display = 'inline-flex';
+        groupCompleteBtn.onclick = () => completeGroupTaskAsAdmin(activity.id, info.key);
+    } else {
+        groupCompleteBtn.style.display = 'none';
+        groupCompleteBtn.onclick = null;
+    }
+
+    document.getElementById('activityDetailModal').classList.add('active');
+}
+
+async function toggleCompletionForCurrentUser(activityId, completionKey, completed) {
+    try {
+        const ref = db.collection('activities').doc(activityId);
+        const doc = await ref.get();
+        if (!doc.exists) return;
+
+        const data = doc.data();
+        const completions = data.completions || {};
+        completions[completionKey] = {
+            completed: completed,
+            completedAt: completed ? new Date().toISOString() : null,
+            completedBy: currentUser.id
+        };
+        await ref.update({ completions: completions });
+    } catch (err) {
+        alert('No se pudo actualizar el check: ' + err.message);
+    }
+}
+
+async function completeGroupTaskAsAdmin(activityId, assignmentKey) {
+    try {
+        const ref = db.collection('activities').doc(activityId);
+        const doc = await ref.get();
+        if (!doc.exists) return;
+
+        const data = doc.data();
+        const completions = data.completions || {};
+        const recipients = getRecipientsForAssignmentKey(assignmentKey);
+
+        completions[assignmentKey] = {
+            completed: true,
+            completedAt: new Date().toISOString(),
+            completedBy: currentUser.id
+        };
+
+        recipients.forEach(memberId => {
+            completions['task_person_' + memberId] = {
+                completed: true,
+                completedAt: new Date().toISOString(),
+                completedBy: currentUser.id
+            };
+        });
+
+        await ref.update({ completions: completions });
+        alert('✅ Tarea grupal marcada como completada.');
+    } catch (err) {
+        alert('No se pudo completar tarea grupal: ' + err.message);
+    }
+}
+
+function getRecipientsForAssignmentKey(assignmentKey) {
+    if (assignmentKey === 'all') return allMembers.map(m => m.id);
+    if (assignmentKey === 'admins') return allMembers.filter(m => m.isAdmin).map(m => m.id);
+    if (assignmentKey.startsWith('group_')) {
+        const group = assignmentKey.replace('group_', '');
+        return allMembers.filter(m => m.group === group).map(m => m.id);
+    }
+    if (assignmentKey.startsWith('person_')) return [assignmentKey.replace('person_', '')];
+    return [];
 }
 
 // =============================================

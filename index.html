@@ -228,18 +228,55 @@
         </div>
     </div>
 
+    <div id="activityDetailModal" class="activity-modal">
+        <div class="activity-modal-card">
+            <button id="activityDetailClose" class="activity-modal-close" type="button">✖</button>
+            <h3 id="activityDetailTitle">Actividad</h3>
+            <p id="activityDetailTime" class="activity-modal-time">--:--</p>
+
+            <div class="activity-modal-section">
+                <h4>Descripción general</h4>
+                <p id="activityDetailGeneral">-</p>
+            </div>
+
+            <div class="activity-modal-section">
+                <h4>Mi tarea</h4>
+                <p id="activityDetailRole">-</p>
+            </div>
+
+            <div class="activity-modal-section">
+                <h4>Mi subtarea personal</h4>
+                <p id="activityDetailPersonal">-</p>
+            </div>
+
+            <div class="activity-modal-actions">
+                <label class="check-row"><input type="checkbox" id="activityDetailTaskCheck" disabled> Tarea general completada</label>
+                <button id="activityDetailTaskToggleBtn" class="btn btn-outline btn-full" type="button">Marcar / Desmarcar tarea</button>
+            </div>
+
+            <div class="activity-modal-actions" id="activityDetailSubtaskWrap" style="display:none">
+                <label class="check-row"><input type="checkbox" id="activityDetailSubtaskCheck" disabled> Subtarea personal completada</label>
+                <button id="activityDetailSubtaskToggleBtn" class="btn btn-outline btn-full" type="button">Marcar / Desmarcar subtarea</button>
+            </div>
+
+            <div class="activity-modal-actions">
+                <button id="activityDetailGroupCompleteBtn" class="btn btn-primary btn-full" type="button" style="display:none">Cerrar tarea grupal (Admin)</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./service-worker.js?v=2')
+                navigator.serviceWorker.register('./service-worker.js?v=3')
                     .catch(() => {});
             });
         }
     </script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-    <script src="firebase-config.js?v=6"></script>
-    <script src="seed-data.js?v=6"></script>
-    <script src="app.js?v=6"></script>
+    <script src="firebase-config.js?v=7"></script>
+    <script src="seed-data.js?v=7"></script>
+    <script src="app.js?v=7"></script>
 </body>
 </html>

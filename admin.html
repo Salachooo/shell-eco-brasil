@@ -59,6 +59,7 @@
             <nav class="admin-tabs" id="adminTabs">
                 <button class="admin-tab active" data-tab="dashboard">📊 Dashboard</button>
                 <button class="admin-tab" data-tab="activities">📅 Actividades</button>
+                <button class="admin-tab" data-tab="people">🧍 Personas</button>
                 <button class="admin-tab" data-tab="members">👥 Miembros</button>
             </nav>
         </header>
@@ -78,6 +79,7 @@
                         <option value="2026-08-27">27 - Competencia D4</option>
                     </select>
                 </div>
+                <div id="dashboardSummaryCards" class="dashboard-summary-cards"></div>
                 <div class="dashboard-table-container">
                     <table class="dashboard-table">
                         <thead><tr><th>Persona</th><th>Grupo</th><th>Tarea Actual</th><th>Actividad</th></tr></thead>
@@ -126,6 +128,10 @@
                         <div class="input-group">
                             <label>Título</label>
                             <input type="text" id="activityTitle" placeholder="Ej: Technical Inspection" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Descripción general</label>
+                            <textarea id="activityDescription" rows="3" placeholder="Breve instrucción para todo el equipo"></textarea>
                         </div>
                         <div class="input-group">
                             <label>Tipo</label>
@@ -185,10 +191,43 @@
                     <div id="activityAssignmentsList" style="margin-top:12px"></div>
                 </div>
 
+                <div class="assign-section">
+                    <h3>🧩 Subtareas Personales</h3>
+                    <p class="text-muted" style="padding:0 0 8px">Añade subtareas por persona dentro de una actividad general.</p>
+                    <form id="subtaskForm">
+                        <div class="input-group">
+                            <label>Actividad</label>
+                            <select id="subtaskActivitySelect">
+                                <option value="">Seleccionar actividad...</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Persona</label>
+                            <select id="subtaskPersonSelect">
+                                <option value="">Seleccionar persona...</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Subtarea</label>
+                            <input type="text" id="subtaskText" placeholder="Ej: Verificar presión de llantas" required>
+                        </div>
+                        <button type="submit" class="btn btn-outline btn-full">Asignar subtarea</button>
+                    </form>
+                    <div id="subtasksList" style="margin-top:12px"></div>
+                </div>
+
                 <!-- ACTIVITIES LIST -->
                 <div class="activities-list-section">
                     <h3>📋 Actividades del Día</h3>
                     <div id="activitiesListContent"><p class="text-muted">Selecciona un día.</p></div>
+                </div>
+            </div>
+
+            <div class="admin-tab-content" id="tab-people">
+                <div class="section-header"><h2>🧍 Personas</h2></div>
+                <div id="peopleSelector" class="people-selector-grid"></div>
+                <div id="personWeeklyDetail" class="person-weekly-detail">
+                    <p class="text-muted">Selecciona una persona para ver su semana.</p>
                 </div>
             </div>
 
@@ -232,8 +271,8 @@
 
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-    <script src="firebase-config.js?v=6"></script>
-    <script src="seed-data.js?v=6"></script>
-    <script src="admin.js?v=6"></script>
+    <script src="firebase-config.js?v=7"></script>
+    <script src="seed-data.js?v=7"></script>
+    <script src="admin.js?v=7"></script>
 </body>
 </html>
