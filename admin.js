@@ -1,18 +1,16 @@
 // =============================================
-// SEM Brasil 2026 - Admin Panel
+// SEM Brasil 2026 - Admin Panel (Redesign v3)
+// Segmented assignment + Array-based sub-tasks
 // =============================================
 
 let adminMembers = [];
 let adminClockInterval = null;
 const SCHEDULE_DAYS = ['2026-08-21','2026-08-22','2026-08-23','2026-08-24','2026-08-25','2026-08-26','2026-08-27'];
-let selectedPersonId = null;
+let adminActivities = [];
 
 function getBrasilTodayISO() {
     return new Intl.DateTimeFormat('en-CA', {
-        timeZone: BRASIL_TIMEZONE,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
+        timeZone: BRASIL_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit'
     }).format(new Date());
 }
 
@@ -20,16 +18,20 @@ function getDefaultScheduleDay() {
     const today = getBrasilTodayISO();
     if (today <= SCHEDULE_DAYS[0]) return SCHEDULE_DAYS[0];
     if (today >= SCHEDULE_DAYS[SCHEDULE_DAYS.length - 1]) return SCHEDULE_DAYS[SCHEDULE_DAYS.length - 1];
-    for (const day of SCHEDULE_DAYS) {
-        if (day >= today) return day;
-    }
+    for (const day of SCHEDULE_DAYS) { if (day >= today) return day; }
     return SCHEDULE_DAYS[0];
 }
 
-// =============================================
-// ADMIN LOGIN (simple: check if user is admin in Firestore)
-// =============================================
+function parseActivityTime(timeStr, dayStr) {
+    const [h, m] = timeStr.split(':').map(Number);
+    const d = new Date(dayStr + 'T12:00:00');
+    d.setHours(h, m, 0, 0);
+    return d;
+}
 
+// =============================================
+// AUTH
+// =============================================
 (function checkAdminAutoLogin() {
     const saved = localStorage.getItem('sem2026_admin');
     if (saved === 'true') {
@@ -60,11 +62,10 @@ document.getElementById('adminLoginForm').addEventListener('submit', async (e) =
             startAdminClock();
             initAdmin();
         } else {
-            // Check if admin user exists at all
-            errorEl.textContent = '❌ Credenciales incorrectas o no eres admin';
+            errorEl.textContent = 'Invalid credentials or not an admin';
         }
     } catch (err) {
-        errorEl.textContent = 'Error de conexión. ¿Firestore activado?';
+        errorEl.textContent = 'Connection error. Is Firestore enabled?';
     }
     loginBtn.classList.remove('loading');
 });
@@ -87,10 +88,10 @@ function startAdminClock() {
 
 function updateAdminClock() {
     const now = new Date();
-    document.getElementById('adminCurrentTime').textContent = now.toLocaleTimeString('es-CO', {
+    document.getElementById('adminCurrentTime').textContent = now.toLocaleTimeString('en-US', {
         timeZone: BRASIL_TIMEZONE, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
     });
-    document.getElementById('adminCurrentDate').textContent = now.toLocaleDateString('es-CO', {
+    document.getElementById('adminCurrentDate').textContent = now.toLocaleDateString('en-US', {
         timeZone: BRASIL_TIMEZONE, weekday: 'long', day: 'numeric', month: 'long'
     });
 }
@@ -98,8 +99,6 @@ function updateAdminClock() {
 // =============================================
 // INIT
 // =============================================
-let adminActivities = [];
-
 function initAdmin() {
     setupAdminTabs();
     loadAdminMembers();
@@ -107,13 +106,15 @@ function initAdmin() {
     setupDashboardDaySelect();
     setupActivitiesDaySelect();
     setupActivityForm();
-    setupAssignForm();
-    setupSubtaskForm();
+    setupAssignPanel();
     setupMemberForm();
+    setupAssignDaySelect();
+    setupAssignScopeSegmented();
 
     const defaultDay = getDefaultScheduleDay();
     document.getElementById('dashboardDaySelect').value = defaultDay;
     document.getElementById('activitiesDaySelect').value = defaultDay;
+    document.getElementById('assignDaySelect').value = defaultDay;
     document.getElementById('activityDate').value = defaultDay;
 }
 
@@ -126,8 +127,8 @@ function setupAdminTabs() {
             document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
             if (tab.dataset.tab === 'dashboard') refreshDashboard();
             if (tab.dataset.tab === 'activities') refreshActivitiesList();
-            if (tab.dataset.tab === 'people') renderPeopleSelector();
-            if (tab.dataset.tab === 'members') refreshMembersList();
+            if (tab.dataset.tab === 'assign') refreshAssignPanel();
+            if (tab.dataset.tab === 'people') refreshMembersList();
         });
     });
 }
@@ -141,12 +142,10 @@ function loadAdminMembers() {
         snapshot.forEach(doc => {
             const data = doc.data();
             data.id = doc.id;
-            // Hide password from display
             adminMembers.push(data);
         });
         refreshMembersList();
-        populateAssignPersonSelect();
-        renderPeopleSelector();
+        populateAssignPersonSelectors();
         refreshDashboard();
     });
 }
@@ -154,13 +153,12 @@ function loadAdminMembers() {
 function refreshMembersList() {
     const container = document.getElementById('membersListContent');
     if (!adminMembers.length) {
-        container.innerHTML = '<p class="text-muted">No hay miembros registrados.</p>';
+        container.innerHTML = '<p class="text-muted">No members registered.</p>';
         return;
     }
 
     const groups = ['alpha', 'beta', 'gamma', 'delta'];
     const labels = { alpha: 'Alpha', beta: 'Beta', gamma: 'Gamma', delta: 'Delta' };
-    const day = document.getElementById('dashboardDaySelect').value;
     const groupedMembers = {
         alpha: adminMembers.filter(m => m.group === 'alpha'),
         beta: adminMembers.filter(m => m.group === 'beta'),
@@ -170,22 +168,16 @@ function refreshMembersList() {
 
     let html = '';
     groups.forEach(group => {
-        html += `<div style="margin:12px 0 8px;font-weight:700;color:var(--text-secondary)">🧩 ${labels[group]} (${groupedMembers[group].length})</div>`;
-
-        if (!groupedMembers[group].length) {
-            html += '<p class="text-muted" style="margin-bottom:10px">Sin miembros en este grupo.</p>';
-            return;
-        }
-
-        groupedMembers[group].forEach(m => {
-            const isAdmin = m.isAdmin ? '⭐ Admin' : '';
-            const registered = m.password ? '✅' : '⏳';
-            const taskText = getMemberTaskForDay(m, day);
+        const members = groupedMembers[group];
+        if (!members.length) return;
+        html += `<div style="margin:12px 0 8px;font-weight:700;color:var(--text-secondary);font-size:13px">${labels[group]} (${members.length})</div>`;
+        members.forEach(m => {
+            const isAdmin = m.isAdmin ? '⭐' : '';
+            const registered = m.password ? '✓' : '○';
             html += `<div class="member-item">
                 <div class="member-item-info">
                     <strong>${m.name || m.id} ${isAdmin}</strong>
-                    <div style="font-size:12px;color:var(--text-muted)">@${m.id} | ${m.role || 'Sin rol'} | ${registered}</div>
-                    <div style="font-size:12px;color:var(--accent-primary);margin-top:2px">Ahora: ${taskText}</div>
+                    <div style="font-size:11px;color:var(--text-muted)">@${m.id} · ${m.role || 'No role'} · ${registered}</div>
                 </div>
                 <div class="member-item-actions" style="display:flex;align-items:center;gap:4px;flex-shrink:0">
                     <select onchange="changeGroup('${m.id}', this.value)" style="width:auto;padding:4px 20px 4px 6px;font-size:11px;background:var(--bg-primary);border:1px solid var(--border-color);border-radius:4px;color:var(--text-primary)">
@@ -194,42 +186,33 @@ function refreshMembersList() {
                         <option value="gamma" ${m.group === 'gamma' ? 'selected' : ''}>Gamma</option>
                         <option value="delta" ${m.group === 'delta' ? 'selected' : ''}>Delta</option>
                     </select>
-                    <button class="btn-icon-small" onclick="toggleAdmin('${m.id}')" title="Admin">⭐</button>
-                    <button class="btn-icon-small" onclick="deleteMember('${m.id}')" title="Eliminar">🗑️</button>
+                    <button class="btn-icon-small" onclick="toggleAdmin('${m.id}')" title="Toggle admin">⭐</button>
+                    <button class="btn-icon-small" onclick="deleteMember('${m.id}')" title="Delete">🗑️</button>
                 </div>
             </div>`;
         });
     });
-
     container.innerHTML = html;
 }
 
-function getMemberTaskForDay(member, day) {
-    const now = new Date();
-    const nowBrasil = new Date(now.toLocaleString('en-US', { timeZone: BRASIL_TIMEZONE }));
-    const dayActivities = adminActivities.filter(a => a.date === day);
-
-    for (const activity of dayActivities) {
-        const start = parseActivityTime(activity.time, day);
-        const end = new Date(start.getTime() + (activity.duration || 120) * 60000);
-        if (nowBrasil.getTime() < start.getTime() || nowBrasil.getTime() >= end.getTime()) continue;
-
-        const a = activity.assignments || {};
-        if (a['person_' + member.id]) return `${a['person_' + member.id]} (${activity.title})`;
-        if (a['group_' + member.group]) return `${a['group_' + member.group]} (${activity.title})`;
-        if (a['admins'] && member.isAdmin) return `${a['admins']} (${activity.title})`;
-        if (a['all']) return `${a['all']} (${activity.title})`;
+function populateAssignPersonSelectors() {
+    // Person selector in new assignment card
+    const personSelect = document.getElementById('assignPersonSelect');
+    if (personSelect) {
+        personSelect.innerHTML = '<option value="">Select person...</option>';
+        adminMembers.forEach(m => {
+            personSelect.innerHTML += `<option value="${m.id}">${m.name || m.id} (${m.group.toUpperCase()})</option>`;
+        });
     }
 
-    return 'Sin tarea activa';
-}
-
-function populateAssignPersonSelect() {
-    const select = document.getElementById('assignPerson');
-    select.innerHTML = '<option value="">Seleccionar persona...</option>';
-    adminMembers.forEach(m => {
-        select.innerHTML += `<option value="${m.id}">${m.name || m.id}</option>`;
-    });
+    // Person selector in sub-tasks card
+    const subtaskSelect = document.getElementById('subtaskPersonSelect');
+    if (subtaskSelect) {
+        subtaskSelect.innerHTML = '<option value="">Select person...</option>';
+        adminMembers.forEach(m => {
+            subtaskSelect.innerHTML += `<option value="${m.id}">${m.name || m.id} (${m.group.toUpperCase()})</option>`;
+        });
+    }
 }
 
 async function toggleAdmin(id) {
@@ -241,20 +224,14 @@ async function toggleAdmin(id) {
 }
 
 async function changeGroup(id, group) {
-    try {
-        await db.collection('members').doc(id).update({ group: group });
-    } catch (err) {
-        alert('Error: ' + err.message);
-    }
+    try { await db.collection('members').doc(id).update({ group: group }); }
+    catch (err) { alert('Error: ' + err.message); }
 }
 
 async function deleteMember(id) {
-    if (!confirm('¿Eliminar este miembro?')) return;
-    try {
-        await db.collection('members').doc(id).delete();
-    } catch (err) {
-        alert('Error: ' + err.message);
-    }
+    if (!confirm('Delete this member?')) return;
+    try { await db.collection('members').doc(id).delete(); }
+    catch (err) { alert('Error: ' + err.message); }
 }
 
 // =============================================
@@ -270,39 +247,25 @@ function setupMemberForm() {
         const name = document.getElementById('memberName').value.trim();
         const user = document.getElementById('memberUser').value.trim().toLowerCase();
         const group = document.getElementById('memberGroup').value;
-        const role = document.getElementById('memberRole').value.trim() || 'Miembro';
+        const role = document.getElementById('memberRole').value.trim() || 'Member';
         const btn = e.target.querySelector('.btn');
 
         btn.classList.add('loading');
-
         try {
             const existing = await db.collection('members').doc(user).get();
-            if (existing.exists) {
-                alert('Ese usuario ya existe');
-                btn.classList.remove('loading');
-                return;
-            }
-
+            if (existing.exists) { alert('Username already exists'); btn.classList.remove('loading'); return; }
             await db.collection('members').doc(user).set({
-                name: name,
-                password: 'eco2026',
-                group: group,
-                role: role,
-                isAdmin: false,
-                createdAt: new Date().toISOString()
+                name, password: 'eco2026', group, role, isAdmin: false, createdAt: new Date().toISOString()
             });
-
             document.getElementById('memberForm').reset();
-            alert('✅ Miembro creado. Usuario: ' + user + ' / Contraseña: eco2026');
-        } catch (err) {
-            alert('Error: ' + err.message);
-        }
+            alert('✓ Member created. User: ' + user + ' / Password: eco2026');
+        } catch (err) { alert('Error: ' + err.message); }
         btn.classList.remove('loading');
     });
 }
 
 // =============================================
-// ACTIVITIES COLLECTION
+// ACTIVITIES
 // =============================================
 function loadAdminActivities() {
     db.collection('activities').onSnapshot((snapshot) => {
@@ -312,64 +275,31 @@ function loadAdminActivities() {
             if (!data || !data.date || !data.time || !data.title) return;
             data.id = doc.id;
             if (!data.assignments || typeof data.assignments !== 'object') data.assignments = {};
+            if (!data.personalSubtasks || typeof data.personalSubtasks !== 'object') data.personalSubtasks = {};
             adminActivities.push(data);
         });
-
         adminActivities.sort((a, b) => {
             const da = `${a.date} ${a.time}`;
-            const dbs = `${b.date} ${b.time}`;
-            return da.localeCompare(dbs);
+            const db = `${b.date} ${b.time}`;
+            return da.localeCompare(db);
         });
-
         refreshActivitiesList();
         refreshDashboard();
         refreshMembersList();
-        if (selectedPersonId) renderPersonWeeklyDetail(selectedPersonId);
+        refreshAssignPanel();
     }, (err) => {
         console.error('Error loading activities:', err);
-        document.getElementById('activitiesListContent').innerHTML =
-            '<p class="text-muted">Error al cargar actividades. Revisa Firestore y recarga.</p>';
-        document.getElementById('assignActivitySelect').innerHTML =
-            '<option value="">Error al cargar actividades</option>';
-        document.getElementById('dashboardBody').innerHTML =
-            '<tr><td colspan="4" class="loading-row">Error al cargar actividades.</td></tr>';
+        document.getElementById('activitiesListContent').innerHTML = '<p class="text-muted">Error loading activities.</p>';
+        document.getElementById('dashboardBody').innerHTML = '<tr><td colspan="5" class="loading-row">Error loading activities.</td></tr>';
     });
 }
 
-// =============================================
-// ACTIVITIES DAY SELECT
-// =============================================
 function setupActivitiesDaySelect() {
     document.getElementById('activitiesDaySelect').addEventListener('change', () => {
         refreshActivitiesList();
-        populateActivitySelect();
     });
 }
 
-function populateActivitySelect() {
-    const day = document.getElementById('activitiesDaySelect').value;
-    const select = document.getElementById('assignActivitySelect');
-    const subtaskSelect = document.getElementById('subtaskActivitySelect');
-    const dayActivities = adminActivities.filter(a => a.date === day);
-
-    select.innerHTML = '<option value="">Seleccionar actividad...</option>';
-    if (subtaskSelect) subtaskSelect.innerHTML = '<option value="">Seleccionar actividad...</option>';
-    dayActivities.forEach(a => {
-        select.innerHTML += `<option value="${a.id}">${a.time} - ${a.title}</option>`;
-        if (subtaskSelect) subtaskSelect.innerHTML += `<option value="${a.id}">${a.time} - ${a.title}</option>`;
-    });
-
-    if (dayActivities.length > 0) {
-        select.dispatchEvent(new Event('change'));
-    } else {
-        document.getElementById('assignFormContainer').style.display = 'none';
-        document.getElementById('activityAssignmentsList').innerHTML = '';
-    }
-}
-
-// =============================================
-// ACTIVITY FORM
-// =============================================
 function setupActivityForm() {
     document.getElementById('activityForm').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -379,35 +309,24 @@ function setupActivityForm() {
         const title = document.getElementById('activityTitle').value.trim();
         const description = document.getElementById('activityDescription').value.trim();
         const type = document.getElementById('activityType').value;
-        const icon = document.getElementById('activityIcon').value.trim() || '📋';
         const btn = e.target.querySelector('.btn');
 
-        if (!date || !time || !title) { alert('Completa fecha, hora y título'); return; }
+        if (!date || !time || !title) { alert('Complete date, time and title'); return; }
         btn.classList.add('loading');
 
         try {
             await db.collection('activities').add({
-                date: date,
-                time: time,
-                duration: duration,
-                title: title,
-                description: description,
-                type: type,
-                icon: icon,
-                assignments: {},
-                personalSubtasks: {},
-                completions: {}
+                date, time, duration, title, description, type,
+                icon: '📋', assignments: {}, personalSubtasks: {}, completions: {}
             });
             document.getElementById('activityForm').reset();
             document.getElementById('activityDuration').value = 120;
-            // Re-set date after reset
             document.getElementById('activityDate').value = document.getElementById('activitiesDaySelect').value;
-            alert('✅ Actividad creada');
+            alert('✓ Activity created');
         } catch (err) { alert('Error: ' + err.message); }
         btn.classList.remove('loading');
     });
 
-    // Set default date to selected day
     const daySelect = document.getElementById('activitiesDaySelect');
     document.getElementById('activityDate').value = daySelect.value;
     daySelect.addEventListener('change', () => {
@@ -415,142 +334,207 @@ function setupActivityForm() {
     });
 }
 
-// =============================================
-// ACTIVITIES LIST
-// =============================================
 function refreshActivitiesList() {
     const day = document.getElementById('activitiesDaySelect').value;
     const dayActivities = adminActivities.filter(a => a.date === day);
     const container = document.getElementById('activitiesListContent');
 
     if (!dayActivities.length) {
-        container.innerHTML = '<p class="text-muted">No hay actividades para este día.</p>';
-        populateActivitySelect();
+        container.innerHTML = '<p class="text-muted">No activities for this day.</p>';
         return;
     }
 
     let html = '';
     dayActivities.forEach(activity => {
-        const typeIcons = {
-            team_activity: '👥', meeting: '📋', competition: '🏁', practice: '🔧',
-            meal: '🍽️', free_time: '⏸️', hotel_departure: '🏨', venue_departure: '🏁'
-        };
         const assignCount = Object.keys(activity.assignments || {}).length;
-        html += `<div class="activity-item" style="margin-bottom:8px;padding:10px;background:var(--bg-card);border-radius:8px;border:1px solid var(--border-color)">
+        const subtaskCount = countSubtasks(activity.personalSubtasks);
+        html += `<div class="event-item" style="margin-bottom:6px;padding:10px;background:var(--bg-card);border-radius:8px;border:1px solid var(--border-color)">
             <div style="display:flex;justify-content:space-between;align-items:center">
                 <div>
-                    <strong style="color:var(--accent-primary)">${activity.time} (${activity.duration}min)</strong>
-                    <div style="font-weight:600">${activity.icon || typeIcons[activity.type] || '📋'} ${activity.title}</div>
-                    <div style="font-size:11px;color:var(--text-muted)">${assignCount} asignaciones</div>
+                    <strong style="color:var(--accent-primary);font-size:13px">${activity.time} (${activity.duration}min)</strong>
+                    <div style="font-weight:600;font-size:14px">${activity.title}</div>
+                    <div style="font-size:11px;color:var(--text-muted)">${assignCount} assignments · ${subtaskCount} sub-tasks</div>
                 </div>
-                <button class="btn-icon-small" onclick="deleteActivity('${activity.id}')" title="Eliminar">🗑️</button>
+                <button class="btn-icon-small" onclick="deleteActivity('${activity.id}')" title="Delete">🗑️</button>
             </div>
         </div>`;
     });
     container.innerHTML = html;
-    populateActivitySelect();
-    const selectedSubtaskActivity = document.getElementById('subtaskActivitySelect').value;
-    if (selectedSubtaskActivity) {
-        populateSubtaskPersonSelect();
-        renderSubtasksList(selectedSubtaskActivity);
-    }
+}
+
+function countSubtasks(subtasks) {
+    if (!subtasks || typeof subtasks !== 'object') return 0;
+    let count = 0;
+    Object.values(subtasks).forEach(val => {
+        if (Array.isArray(val)) count += val.length;
+    });
+    return count;
 }
 
 async function deleteActivity(id) {
-    if (!confirm('¿Eliminar esta actividad?')) return;
-    try {
-        await db.collection('activities').doc(id).delete();
-    } catch (err) { alert('Error: ' + err.message); }
+    if (!confirm('Delete this activity?')) return;
+    try { await db.collection('activities').doc(id).delete(); }
+    catch (err) { alert('Error: ' + err.message); }
 }
 
 // =============================================
-// ASSIGN TO ACTIVITY
+// ASSIGNMENTS PANEL (Redesigned)
 // =============================================
-function setupAssignForm() {
+
+/** Setup segmented control for assignment scope */
+function setupAssignScopeSegmented() {
+    const container = document.getElementById('assignScopeSegmented');
+    if (!container) return;
+
+    container.querySelectorAll('.segmented-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            container.querySelectorAll('.segmented-option').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            const scope = btn.dataset.scope;
+            document.getElementById('assignGroupField').style.display = scope === 'group' ? 'block' : 'none';
+            document.getElementById('assignPersonField').style.display = scope === 'person' ? 'block' : 'none';
+        });
+    });
+}
+
+function setupAssignDaySelect() {
+    document.getElementById('assignDaySelect').addEventListener('change', () => {
+        refreshAssignPanel();
+    });
+}
+
+function refreshAssignPanel() {
+    const day = document.getElementById('assignDaySelect').value;
+    const dayActivities = adminActivities.filter(a => a.date === day);
+    const select = document.getElementById('assignActivitySelect');
+
+    select.innerHTML = '<option value="">Select an activity...</option>';
+    dayActivities.forEach(a => {
+        select.innerHTML += `<option value="${a.id}">${a.time} - ${a.title}</option>`;
+    });
+
+    if (dayActivities.length > 0) {
+        select.value = dayActivities[0].id;
+        select.dispatchEvent(new Event('change'));
+    } else {
+        document.getElementById('assignPanel').style.display = 'none';
+    }
+}
+
+function setupAssignPanel() {
     const select = document.getElementById('assignActivitySelect');
     select.addEventListener('change', () => {
         const activityId = select.value;
         if (activityId) {
-            document.getElementById('assignFormContainer').style.display = 'block';
-            renderActivityAssignments(activityId);
-            document.getElementById('subtaskActivitySelect').value = activityId;
-            populateSubtaskPersonSelect();
+            document.getElementById('assignPanel').style.display = 'block';
+            renderCurrentAssignments(activityId);
+            populateSubtaskPersonSelect(activityId);
             renderSubtasksList(activityId);
         } else {
-            document.getElementById('assignFormContainer').style.display = 'none';
+            document.getElementById('assignPanel').style.display = 'none';
         }
     });
 
-    document.getElementById('assignTarget').addEventListener('change', () => {
-        document.getElementById('assignPersonGroup').style.display =
-            document.getElementById('assignTarget').value === 'individual' ? 'block' : 'none';
-    });
-
-    document.getElementById('assignForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
+    // Assign button — uses segmented control for scope
+    document.getElementById('assignBtn').addEventListener('click', async () => {
         const activityId = document.getElementById('assignActivitySelect').value;
-        const target = document.getElementById('assignTarget').value;
-        const person = document.getElementById('assignPerson').value;
-        const role = document.getElementById('assignRole').value.trim();
-        const btn = e.target.querySelector('.btn');
+        const role = document.getElementById('assignRoleInput').value.trim();
 
-        if (!activityId || !target || !role) { alert('Completa todos los campos'); return; }
-        btn.classList.add('loading');
+        if (!activityId || !role) { alert('Select an activity and enter a task description'); return; }
+
+        // Determine scope from segmented control
+        const activeScope = document.querySelector('#assignScopeSegmented .segmented-option.active');
+        if (!activeScope) { alert('Select who to assign to'); return; }
+
+        const scope = activeScope.dataset.scope;
+        let key;
+
+        if (scope === 'all') {
+            key = 'all';
+        } else if (scope === 'group') {
+            const group = document.getElementById('assignGroupSelect').value;
+            key = 'group_' + group;
+        } else if (scope === 'person') {
+            const person = document.getElementById('assignPersonSelect').value;
+            if (!person) { alert('Select a person'); return; }
+            key = 'person_' + person;
+        }
 
         try {
             const docRef = db.collection('activities').doc(activityId);
             const doc = await docRef.get();
-            if (!doc.exists) { alert('Actividad no encontrada'); return; }
+            if (!doc.exists) return;
 
             const data = doc.data();
             if (!data.assignments) data.assignments = {};
-
-            let key;
-            if (target === 'all') key = 'all';
-            else if (target === 'admins') key = 'admins';
-            else if (target.startsWith('group_')) key = target;
-            else if (target === 'individual') {
-                if (!person) { alert('Selecciona una persona'); return; }
-                key = 'person_' + person;
-            }
-
             data.assignments[key] = role;
             await docRef.update({ assignments: data.assignments });
-            document.getElementById('assignForm').reset();
-            document.getElementById('assignPersonGroup').style.display = 'none';
-            renderActivityAssignments(activityId);
-            alert('✅ Asignación guardada');
+            document.getElementById('assignRoleInput').value = '';
+            renderCurrentAssignments(activityId);
         } catch (err) { alert('Error: ' + err.message); }
-        btn.classList.remove('loading');
+    });
+
+    // Sub-task button — now appends to array
+    document.getElementById('subtaskBtn').addEventListener('click', async () => {
+        const activityId = document.getElementById('assignActivitySelect').value;
+        const personId = document.getElementById('subtaskPersonSelect').value;
+        const text = document.getElementById('subtaskText').value.trim();
+
+        if (!activityId || !personId || !text) { alert('Complete all fields'); return; }
+
+        try {
+            const ref = db.collection('activities').doc(activityId);
+            const doc = await ref.get();
+            if (!doc.exists) return;
+
+            const data = doc.data();
+            if (!data.personalSubtasks || typeof data.personalSubtasks !== 'object') {
+                data.personalSubtasks = {};
+            }
+
+            // Ensure it's an array, then push
+            if (!Array.isArray(data.personalSubtasks[personId])) {
+                data.personalSubtasks[personId] = [];
+            }
+            data.personalSubtasks[personId].push(text);
+
+            await ref.update({ personalSubtasks: data.personalSubtasks });
+            document.getElementById('subtaskText').value = '';
+            populateSubtaskPersonSelect(activityId);
+            renderSubtasksList(activityId);
+        } catch (err) { alert('Error: ' + err.message); }
     });
 }
 
-function renderActivityAssignments(activityId) {
+function renderCurrentAssignments(activityId) {
     const activity = adminActivities.find(a => a.id === activityId);
-    const container = document.getElementById('activityAssignmentsList');
+    const container = document.getElementById('assignCurrentList');
     if (!activity || !activity.assignments) {
-        container.innerHTML = '<p class="text-muted">Sin asignaciones.</p>';
+        container.innerHTML = '<p class="text-muted">No assignments yet.</p>';
         return;
     }
 
     const entries = Object.entries(activity.assignments);
     if (!entries.length) {
-        container.innerHTML = '<p class="text-muted">Sin asignaciones.</p>';
+        container.innerHTML = '<p class="text-muted">No assignments yet.</p>';
         return;
     }
 
-    let html = '<div style="display:flex;flex-wrap:gap;gap:6px;flex-direction:column">';
+    let html = '';
     entries.forEach(([key, value]) => {
-        let target = key === 'all' ? '👥 Todos' :
+        let target = key === 'all' ? '👥 Everyone' :
                      key === 'admins' ? '⭐ Admins' :
-                     key.startsWith('group_') ? '🅰️ ' + key.replace('group_', '').charAt(0).toUpperCase() + key.replace('group_', '').slice(1) :
+                     key.startsWith('group_') ? '🅰️ ' + key.replace('group_', '').toUpperCase() :
                      key.startsWith('person_') ? '👤 ' + key.replace('person_', '') : key;
-        html += `<div style="font-size:13px;padding:4px 8px;background:var(--bg-secondary);border-radius:6px">
-            <strong>${target}</strong>: ${value}
-            <button class="btn-icon-small" onclick="removeAssignment('${activityId}','${key}')" style="float:right;font-size:10px">✖</button>
+        html += `<div class="assign-item">
+            <div class="assign-item-info">
+                <strong>${target}</strong>
+                <div style="font-size:12px;color:var(--text-secondary)">${value}</div>
+            </div>
+            <button class="btn-icon-small" onclick="removeAssignment('${activityId}','${key}')" title="Remove">✖</button>
         </div>`;
     });
-    html += '</div>';
     container.innerHTML = html;
 }
 
@@ -568,151 +552,78 @@ async function removeAssignment(activityId, key) {
     } catch (err) { alert('Error: ' + err.message); }
 }
 
-function setupSubtaskForm() {
-    const form = document.getElementById('subtaskForm');
-    if (!form || form.dataset.bound === 'true') return;
-    form.dataset.bound = 'true';
-
-    const activitySelect = document.getElementById('subtaskActivitySelect');
-    activitySelect.addEventListener('change', () => {
-        populateSubtaskPersonSelect();
-        renderSubtasksList(activitySelect.value);
-    });
-
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const activityId = document.getElementById('subtaskActivitySelect').value;
-        const personId = document.getElementById('subtaskPersonSelect').value;
-        const text = document.getElementById('subtaskText').value.trim();
-
-        if (!activityId || !personId || !text) {
-            alert('Completa actividad, persona y subtarea.');
-            return;
-        }
-
-        try {
-            const ref = db.collection('activities').doc(activityId);
-            const doc = await ref.get();
-            if (!doc.exists) return;
-
-            const data = doc.data();
-            if (!data.personalSubtasks || typeof data.personalSubtasks !== 'object') data.personalSubtasks = {};
-
-            if (data.personalSubtasks[personId]) {
-                alert('Esta persona ya tiene subtarea en la actividad seleccionada.');
-                return;
-            }
-
-            data.personalSubtasks[personId] = text;
-            await ref.update({ personalSubtasks: data.personalSubtasks });
-            document.getElementById('subtaskText').value = '';
-            populateSubtaskPersonSelect();
-            renderSubtasksList(activityId);
-        } catch (err) {
-            alert('Error guardando subtarea: ' + err.message);
-        }
-    });
-}
-
-function populateSubtaskPersonSelect() {
-    const activityId = document.getElementById('subtaskActivitySelect').value;
+function populateSubtaskPersonSelect(activityId) {
     const select = document.getElementById('subtaskPersonSelect');
-    select.innerHTML = '<option value="">Seleccionar persona...</option>';
+    select.innerHTML = '<option value="">Select person...</option>';
 
     if (!activityId) return;
     const activity = adminActivities.find(a => a.id === activityId);
     if (!activity) return;
 
-    const used = new Set(Object.keys(activity.personalSubtasks || {}));
-    const preferredGroup = getPreferredGroupForActivity(activity);
-
-    const primary = adminMembers.filter(m => m.group === preferredGroup && !used.has(m.id));
-    const rest = adminMembers.filter(m => m.group !== preferredGroup && !used.has(m.id));
-
-    if (primary.length) {
-        const optPrimary = document.createElement('optgroup');
-        optPrimary.label = `Grupo ${preferredGroup ? preferredGroup.toUpperCase() : 'principal'}`;
-        primary.forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m.id;
-            opt.textContent = `${m.name || m.id} (${m.group.toUpperCase()})`;
-            optPrimary.appendChild(opt);
-        });
-        select.appendChild(optPrimary);
-    }
-
-    if (primary.length && rest.length) {
-        const sep = document.createElement('optgroup');
-        sep.label = '-------';
-        select.appendChild(sep);
-    }
-
-    if (rest.length) {
-        const optRest = document.createElement('optgroup');
-        optRest.label = 'Otros miembros';
-        rest.forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m.id;
-            opt.textContent = `${m.name || m.id} (${m.group.toUpperCase()})`;
-            optRest.appendChild(opt);
-        });
-        select.appendChild(optRest);
-    }
-}
-
-function getPreferredGroupForActivity(activity) {
-    const assignments = activity.assignments || {};
-    const groupKey = Object.keys(assignments).find(k => k.startsWith('group_'));
-    if (!groupKey) return null;
-    return groupKey.replace('group_', '');
+    // Still show all members — they can have multiple sub-tasks now
+    adminMembers.forEach(m => {
+        select.innerHTML += `<option value="${m.id}">${m.name || m.id} (${m.group.toUpperCase()})</option>`;
+    });
 }
 
 function renderSubtasksList(activityId) {
     const container = document.getElementById('subtasksList');
     if (!activityId) {
-        container.innerHTML = '<p class="text-muted">Selecciona una actividad para ver subtareas.</p>';
+        container.innerHTML = '<p class="text-muted">Select an activity to see sub-tasks.</p>';
         return;
     }
 
     const activity = adminActivities.find(a => a.id === activityId);
     const subtasks = activity && activity.personalSubtasks ? activity.personalSubtasks : {};
-    const entries = Object.entries(subtasks);
+
+    const entries = [];
+    Object.keys(subtasks).forEach(memberId => {
+        if (Array.isArray(subtasks[memberId])) {
+            subtasks[memberId].forEach((text, idx) => {
+                entries.push({ memberId, text, idx });
+            });
+        }
+    });
 
     if (!entries.length) {
-        container.innerHTML = '<p class="text-muted">Sin subtareas personales.</p>';
+        container.innerHTML = '<p class="text-muted">No sub-tasks.</p>';
         return;
     }
 
     let html = '';
-    entries.forEach(([memberId, text]) => {
+    entries.forEach(({ memberId, text, idx }) => {
         const member = adminMembers.find(m => m.id === memberId);
         const name = member ? member.name : memberId;
-        html += `<div class="assign-item">
-            <div class="assign-item-info">
-                <strong>👤 ${name}</strong>
-                <div style="font-size:12px;color:var(--text-secondary)">${text}</div>
+        html += `<div class="admin-subtask-item">
+            <div class="subtask-info">
+                <span class="subtask-person">👤 ${name}</span>
+                <span class="subtask-desc">${text}</span>
             </div>
-            <button class="btn-icon-small" onclick="removeSubtask('${activityId}','${memberId}')" title="Eliminar subtarea">🗑️</button>
+            <button class="btn-icon-small" onclick="removeSubtask('${activityId}','${memberId}',${idx})" title="Remove">✖</button>
         </div>`;
     });
     container.innerHTML = html;
 }
 
-async function removeSubtask(activityId, memberId) {
+async function removeSubtask(activityId, memberId, idx) {
     try {
         const ref = db.collection('activities').doc(activityId);
         const doc = await ref.get();
         if (!doc.exists) return;
-
+        
         const data = doc.data();
         const map = data.personalSubtasks || {};
-        delete map[memberId];
+        if (Array.isArray(map[memberId])) {
+            map[memberId].splice(idx, 1);
+            // Clean up empty arrays
+            if (map[memberId].length === 0) {
+                delete map[memberId];
+            }
+        }
         await ref.update({ personalSubtasks: map });
-        populateSubtaskPersonSelect();
+        populateSubtaskPersonSelect(activityId);
         renderSubtasksList(activityId);
-    } catch (err) {
-        alert('Error eliminando subtarea: ' + err.message);
-    }
+    } catch (err) { alert('Error: ' + err.message); }
 }
 
 // =============================================
@@ -731,7 +642,7 @@ function refreshDashboard() {
     const summaryCards = document.getElementById('dashboardSummaryCards');
 
     if (!adminMembers.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="loading-row">No hay miembros.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="loading-row">No members.</td></tr>';
         if (summaryCards) summaryCards.innerHTML = '';
         return;
     }
@@ -739,12 +650,13 @@ function refreshDashboard() {
     const dayActivities = adminActivities.filter(a => a.date === day);
     const now = new Date();
     const nowBrasil = new Date(now.toLocaleString('en-US', { timeZone: BRASIL_TIMEZONE }));
+    const groupColors = { alpha: '#f85149', beta: '#58a6ff', gamma: '#3fb950', delta: '#d29922' };
 
     let html = '';
     adminMembers.forEach(member => {
-        let currentTask = 'Sin tarea';
+        let currentTask = 'No task';
         let currentActivity = '—';
-        const groupColors = { alpha: '#e74c3c', beta: '#3498db', gamma: '#2ecc71', delta: '#f39c12' };
+        let isDone = false;
 
         for (const activity of dayActivities) {
             const activityStart = parseActivityTime(activity.time, day);
@@ -758,12 +670,29 @@ function refreshDashboard() {
             }
         }
 
+        // Check if any task is completed (per-key model)
+        for (const activity of dayActivities) {
+            const comp = activity.completions || {};
+            // Check all per-key completions for this member
+            const completions = Object.keys(comp).filter(k => {
+                return k.startsWith('person_' + member.id) || 
+                       k.startsWith('subtask_' + member.id) ||
+                       k === 'all' ||
+                       k === 'admins' ||
+                       k.startsWith('group_' + member.group);
+            });
+            if (completions.some(k => comp[k] && comp[k].completed)) {
+                isDone = true; break;
+            }
+        }
+
         const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${groupColors[member.group] || '#666'};margin-right:6px"></span>`;
         html += `<tr>
             <td>${dot}${member.name || member.id} ${member.isAdmin ? '⭐' : ''}</td>
             <td><span style="text-transform:uppercase;font-size:12px;font-weight:600;color:${groupColors[member.group]}">${member.group}</span></td>
             <td>${currentTask}</td>
             <td style="font-size:12px;color:var(--text-muted)">${currentActivity}</td>
+            <td style="text-align:center">${isDone ? '✓' : '○'}</td>
         </tr>`;
     });
     tbody.innerHTML = html;
@@ -771,153 +700,57 @@ function refreshDashboard() {
     if (summaryCards) {
         const stats = calculateDayCompletionStats(day);
         summaryCards.innerHTML = `
-            <div class="summary-card"><span class="summary-label">Personas</span><strong>${adminMembers.length}</strong></div>
-            <div class="summary-card"><span class="summary-label">Actividades</span><strong>${dayActivities.length}</strong></div>
-            <div class="summary-card"><span class="summary-label">Cumplimiento</span><strong>${stats.percent}%</strong><small>${stats.completed}/${stats.total}</small></div>
+            <div class="summary-card"><span class="label">People</span><span class="stat">${adminMembers.length}</span></div>
+            <div class="summary-card"><span class="label">Activities</span><span class="stat">${dayActivities.length}</span></div>
+            <div class="summary-card"><span class="label">Completion</span><span class="stat">${stats.percent}%</span><span style="font-size:10px;color:var(--text-muted)">${stats.completed}/${stats.total}</span></div>
         `;
     }
 }
 
-function renderPeopleSelector() {
-    const container = document.getElementById('peopleSelector');
-    if (!container) return;
-
-    if (!adminMembers.length) {
-        container.innerHTML = '<p class="text-muted">No hay miembros para mostrar.</p>';
-        return;
-    }
-
-    let html = '';
-    adminMembers.forEach(member => {
-        const activeClass = selectedPersonId === member.id ? 'active' : '';
-        html += `<button class="person-chip ${activeClass}" onclick="renderPersonWeeklyDetail('${member.id}')">${member.name || member.id}</button>`;
-    });
-    container.innerHTML = html;
-
-    if (!selectedPersonId && adminMembers[0]) {
-        renderPersonWeeklyDetail(adminMembers[0].id);
-    }
-}
-
-function renderPersonWeeklyDetail(memberId) {
-    selectedPersonId = memberId;
-    renderPeopleSelector();
-
-    const detail = document.getElementById('personWeeklyDetail');
-    const member = adminMembers.find(m => m.id === memberId);
-    if (!detail || !member) return;
-
-    const weekly = calculateWeeklyProgress(member);
-    let activitiesHtml = '';
-
-    SCHEDULE_DAYS.forEach(day => {
-        const dayActivities = adminActivities.filter(a => a.date === day);
-        let rows = '';
-        dayActivities.forEach(activity => {
-            const assignment = getMemberAssignmentForActivity(member, activity);
-            const personalSubtask = activity.personalSubtasks && activity.personalSubtasks[member.id];
-            if (!assignment && !personalSubtask) return;
-
-            const comp = activity.completions || {};
-            const taskDone = !!(comp['task_person_' + member.id] && comp['task_person_' + member.id].completed);
-            const subtaskDone = !!(comp['subtask_person_' + member.id] && comp['subtask_person_' + member.id].completed);
-            rows += `<div class="weekly-row">
-                <div><strong>${activity.time}</strong> - ${activity.title}</div>
-                <div class="weekly-meta">${assignment ? 'Task: ' + assignment : ''}${personalSubtask ? ' | Subtask: ' + personalSubtask : ''}</div>
-                <div class="weekly-meta">${taskDone ? '✅ task' : '⏳ task'}${personalSubtask ? (subtaskDone ? ' • ✅ subtask' : ' • ⏳ subtask') : ''}</div>
-            </div>`;
-        });
-
-        if (!rows) rows = '<div class="weekly-row empty">Sin tareas asignadas.</div>';
-        activitiesHtml += `<div class="weekly-day-block"><h4>${day}</h4>${rows}</div>`;
-    });
-
-    detail.innerHTML = `
-        <div class="person-summary-head">
-            <h3>${member.name || member.id}</h3>
-            <div class="weekly-meta">Grupo ${member.group.toUpperCase()} ${member.isAdmin ? '• Admin' : ''}</div>
-            <div class="progress-bar"><span style="width:${weekly.percent}%"></span></div>
-            <div class="weekly-meta">Cumplimiento semanal: ${weekly.percent}% (${weekly.completed}/${weekly.total})</div>
-        </div>
-        <div class="weekly-activities">${activitiesHtml}</div>
-    `;
-}
-
-function calculateWeeklyProgress(member) {
-    let total = 0;
-    let completed = 0;
-
-    adminActivities.forEach(activity => {
-        const assignment = getMemberAssignmentForActivity(member, activity);
-        const personalSubtask = activity.personalSubtasks && activity.personalSubtasks[member.id];
-        const comp = activity.completions || {};
-
-        if (assignment) {
-            total++;
-            if (comp['task_person_' + member.id] && comp['task_person_' + member.id].completed) completed++;
-        }
-        if (personalSubtask) {
-            total++;
-            if (comp['subtask_person_' + member.id] && comp['subtask_person_' + member.id].completed) completed++;
-        }
-    });
-
-    const percent = total ? Math.round((completed / total) * 100) : 0;
-    return { total, completed, percent };
-}
-
-function getMemberAssignmentForActivity(member, activity) {
-    const a = activity.assignments || {};
-    if (a['person_' + member.id]) return a['person_' + member.id];
-    if (a['group_' + member.group]) return a['group_' + member.group];
-    if (a['admins'] && member.isAdmin) return a['admins'];
-    if (a['all']) return a['all'];
-    return null;
-}
-
 function calculateDayCompletionStats(day) {
     const dayActivities = adminActivities.filter(a => a.date === day);
-    let total = 0;
-    let completed = 0;
+    let total = 0, completed = 0;
 
     dayActivities.forEach(activity => {
-        const assignments = activity.assignments || {};
-        const personalSubtasks = activity.personalSubtasks || {};
+        const a = activity.assignments || {};
         const completions = activity.completions || {};
 
-        Object.keys(assignments).forEach(key => {
+        Object.keys(a).forEach(key => {
             if (key === 'all') {
-                adminMembers.forEach(member => {
+                adminMembers.forEach(m => {
                     total++;
-                    if (completions['task_person_' + member.id] && completions['task_person_' + member.id].completed) completed++;
+                    if (Object.keys(completions).some(k => 
+                        (k.startsWith('person_' + m.id) || k.startsWith('subtask_' + m.id)) &&
+                        completions[k] && completions[k].completed
+                    )) completed++;
                 });
                 return;
             }
             if (key === 'admins') {
-                adminMembers.filter(m => m.isAdmin).forEach(member => {
+                adminMembers.filter(m => m.isAdmin).forEach(m => {
                     total++;
-                    if (completions['task_person_' + member.id] && completions['task_person_' + member.id].completed) completed++;
+                    if (Object.keys(completions).some(k => 
+                        (k.startsWith('person_' + m.id) || k.startsWith('subtask_' + m.id)) &&
+                        completions[k] && completions[k].completed
+                    )) completed++;
                 });
                 return;
             }
             if (key.startsWith('group_')) {
                 const group = key.replace('group_', '');
-                adminMembers.filter(m => m.group === group).forEach(member => {
+                adminMembers.filter(m => m.group === group).forEach(m => {
                     total++;
-                    if (completions['task_person_' + member.id] && completions['task_person_' + member.id].completed) completed++;
+                    if (Object.keys(completions).some(k => 
+                        (k.startsWith('person_' + m.id) || k.startsWith('subtask_' + m.id)) &&
+                        completions[k] && completions[k].completed
+                    )) completed++;
                 });
                 return;
             }
             if (key.startsWith('person_')) {
-                const memberId = key.replace('person_', '');
                 total++;
-                if (completions['task_person_' + memberId] && completions['task_person_' + memberId].completed) completed++;
+                if (completions[key] && completions[key].completed) completed++;
             }
-        });
-
-        Object.keys(personalSubtasks).forEach(memberId => {
-            total++;
-            if (completions['subtask_person_' + memberId] && completions['subtask_person_' + memberId].completed) completed++;
         });
     });
 
@@ -925,12 +758,4 @@ function calculateDayCompletionStats(day) {
     return { total, completed, percent };
 }
 
-function parseActivityTime(timeStr, dayStr) {
-    const [h, m] = timeStr.split(':').map(Number);
-    const d = new Date(dayStr + 'T12:00:00');
-    d.setHours(h, m, 0, 0);
-    return d;
-}
-
-
-console.log('SEM Brasil 2026 - Admin Panel loaded');
+console.log('SEM Brasil 2026 - Admin Panel v3 loaded (segmented control + array sub-tasks)');

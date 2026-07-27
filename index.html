@@ -6,122 +6,90 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#1a1a2e">
-    <meta name="description" content="Shell Eco-marathon Brasil 2026 - Team Schedule">
-    <title>Team Schedule | SEM Brasil 2026</title>
+    <meta name="theme-color" content="#0d1117">
+    <meta name="description" content="Shell Eco-marathon Brasil 2026 - Team Schedule Application">
+    <title>SEM Brasil 2026 · Team Schedule</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="shortcut icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏎️</text></svg>">
     <link rel="stylesheet" href="style.css">
-    <style>
-        .app-logo {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .app-logo-icon {
-            width: 32px;
-            height: 32px;
-            background: var(--accent-primary);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-        }
-        .app-logo-text {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--accent-primary);
-            line-height: 1.2;
-        }
-        .app-logo-sub {
-            font-size: 10px;
-            color: var(--text-muted);
-            font-weight: 400;
-        }
-    </style>
 </head>
 <body>
-    <!-- LOGIN SCREEN -->
+    <!-- ==================== LOGIN SCREEN ==================== -->
     <div id="loginScreen" class="screen active">
         <div class="login-container">
             <div class="login-logo">
-                <div class="logo-icon">🏎️</div>
+                <div class="login-logo-icon">🏎️</div>
                 <h1>SEM Brasil 2026</h1>
-                <p class="login-subtitle">Shell Eco-marathon</p>
+                <p class="login-subtitle">Shell Eco-marathon · Team Operations</p>
             </div>
             <form id="loginForm" class="login-form">
                 <div class="input-group">
-                    <label for="loginUser">Usuario</label>
-                    <input type="text" id="loginUser" placeholder="Tu usuario" required autocomplete="username">
+                    <label for="loginUser">Username</label>
+                    <input type="text" id="loginUser" placeholder="ej: ana-garcia" required autocomplete="username">
                 </div>
                 <div class="input-group">
-                    <label for="loginPass">Contraseña</label>
-                    <input type="password" id="loginPass" placeholder="Tu contraseña" required autocomplete="current-password">
+                    <label for="loginPass">Password</label>
+                    <input type="password" id="loginPass" placeholder="••••••" required autocomplete="current-password">
                 </div>
                 <button type="submit" class="btn btn-primary btn-full" id="loginBtn">
-                    <span class="btn-text">Ingresar</span>
+                    <span class="btn-text">Sign in</span>
                     <span class="btn-loader"></span>
                 </button>
                 <p id="loginError" class="login-error"></p>
             </form>
             <div style="margin-top:16px;text-align:center">
-                <button id="registerBtn" class="btn btn-outline btn-small">📝 Registrarse</button>
+                <button id="registerBtn" class="btn btn-ghost btn-small">First time? Register →</button>
             </div>
-            <p class="login-footer">Shell Eco-marathon Brasil 2026</p>
+            <p class="login-footer">Shell Eco-marathon Brasil 2026 · EIA Racing</p>
         </div>
     </div>
 
-    <!-- REGISTER SCREEN -->
+    <!-- ==================== REGISTER SCREEN ==================== -->
     <div id="registerScreen" class="screen">
         <div class="login-container">
             <div class="login-logo">
-                <div class="logo-icon">📝</div>
-                <h1>Registrarse</h1>
-                <p class="login-subtitle">Elige quién eres y crea tu contraseña</p>
+                <div class="login-logo-icon">📝</div>
+                <h1>Register</h1>
+                <p class="login-subtitle">Select your name and create a password</p>
             </div>
             <form id="registerForm" class="login-form">
                 <div class="input-group">
-                    <label for="regMemberSelect">¿Quién eres?</label>
+                    <label for="regMemberSelect">Who are you?</label>
                     <select id="regMemberSelect" required>
-                        <option value="">Cargando...</option>
+                        <option value="">Loading...</option>
                     </select>
-                    <span id="regCount" style="font-size:12px;color:var(--text-muted);margin-top:4px;display:block"></span>
+                    <span id="regCount" style="font-size:11px;color:var(--text-muted);margin-top:4px;display:block"></span>
                 </div>
                 <div class="input-group">
-                    <label for="regPass">Crea una contraseña</label>
-                    <input type="password" id="regPass" placeholder="Mínimo 3 caracteres" required minlength="3">
+                    <label for="regPass">Create a password</label>
+                    <input type="password" id="regPass" placeholder="Minimum 3 characters" required minlength="3">
                 </div>
                 <button type="submit" class="btn btn-primary btn-full">
-                    <span class="btn-text">Crear cuenta</span>
+                    <span class="btn-text">Create account</span>
                     <span class="btn-loader"></span>
                 </button>
                 <p id="registerError" class="login-error"></p>
             </form>
             <div style="margin-top:16px;text-align:center">
-                <button id="backToLoginBtn" class="btn btn-outline btn-small">← Ya tengo cuenta</button>
+                <button id="backToLoginBtn" class="btn btn-ghost btn-small">← Already have an account</button>
             </div>
         </div>
     </div>
 
-    <!-- APP SCREEN -->
+    <!-- ==================== MAIN APP ==================== -->
     <div id="appScreen" class="screen">
+        <!-- Header -->
         <header class="app-header">
             <div class="header-top">
-                <div class="header-left">
-                    <div class="app-logo">
-                        <div class="app-logo-icon">🏎️</div>
-                        <div>
-                            <div class="app-logo-text">SEM Brasil</div>
-                            <div class="app-logo-sub">Team Schedule</div>
-                        </div>
-                    </div>
+                <div class="app-title">
+                    <span>🏎️</span>
+                    <span><span class="app-title-accent">SEM</span> Brasil <span class="app-title-sub">Team Schedule</span></span>
                 </div>
                 <div class="header-right">
-                    <span class="header-name" id="userName" style="font-size:13px">Usuario</span>
-                    <button id="themeToggle" class="icon-btn" title="Tema">🌙</button>
-                    <button id="logoutBtn" class="icon-btn" title="Cerrar sesión">🚪</button>
+                    <span class="header-user-name" id="userName">user</span>
+                    <button id="themeToggle" class="btn-icon" title="Toggle theme">🌙</button>
+                    <button id="logoutBtn" class="btn-icon" title="Sign out">🚪</button>
                 </div>
             </div>
             <div class="header-clock">
@@ -130,56 +98,66 @@
                 <span id="currentDate" class="clock-date">---</span>
             </div>
             <div class="next-event-bar" id="nextEventBar">
-                <span class="next-event-label">Próximo:</span>
-                <span id="nextEventText" class="next-event-text">Cargando...</span>
+                <span class="next-event-label">Up next</span>
+                <span id="nextEventText" class="next-event-text">Loading...</span>
                 <span id="nextEventCountdown" class="next-event-countdown">--:--:--</span>
             </div>
-            <nav class="day-nav" id="dayNav">
-                <button class="day-btn" data-day="2026-08-21">21</button>
-                <button class="day-btn" data-day="2026-08-22">22</button>
-                <button class="day-btn" data-day="2026-08-23">23</button>
-                <button class="day-btn active" data-day="2026-08-24">24</button>
-                <button class="day-btn" data-day="2026-08-25">25</button>
-                <button class="day-btn" data-day="2026-08-26">26</button>
-                <button class="day-btn" data-day="2026-08-27">27</button>
-            </nav>
+            <nav class="day-nav" id="dayNav"></nav>
         </header>
 
+        <!-- Main Content -->
         <main class="app-main" id="appMain">
+            <!-- Now Playing -->
             <div class="current-task-card" id="currentTaskCard">
                 <div class="current-task-header">
-                    <span class="current-task-label">📍 AHORA</span>
+                    <span class="current-task-label">Now</span>
                     <span class="current-task-time" id="currentTaskTime">--:--</span>
                 </div>
                 <div class="current-task-body">
-                    <span class="current-task-icon" id="currentTaskIcon">📋</span>
+                    <div class="current-task-icon" id="currentTaskIcon">📋</div>
                     <div class="current-task-info">
-                        <span class="current-task-title" id="currentTaskTitle">Cargando...</span>
+                        <span class="current-task-title" id="currentTaskTitle">Loading...</span>
                         <span class="current-task-role" id="currentTaskRole"></span>
+                        <div class="current-task-progress" id="currentTaskProgress">
+                            <div class="progress-bar"><div class="progress-bar-fill" id="currentTaskProgressFill" style="width:0%"></div></div>
+                            <span class="progress-text" id="currentTaskProgressText">0%</span>
+                        </div>
+                        <div class="current-task-meta" id="currentTaskMeta">
+                            <span id="currentTaskPeople">👥 0 people assigned</span>
+                            <span id="currentTaskStatus">● Active</span>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            <!-- Schedule Section -->
             <div class="section-header">
-                <h2>📋 Cronograma del Día</h2>
-                <a href="https://results.sem-app.com/app/sem_2026_br/schedule" target="_blank" rel="noopener" class="btn btn-outline btn-small">🌐 Ver Oficial</a>
+                <h2 id="scheduleDayTitle">Today's Schedule</h2>
+                <a href="https://results.sem-app.com/app/sem_2026_br/schedule" target="_blank" rel="noopener" class="btn btn-outline btn-small">Official ↗</a>
+            </div>
+            <div class="filter-bar" id="filterBar">
+                <button class="filter-chip active" data-filter="all">All</button>
+                <button class="filter-chip" data-filter="active">Active</button>
+                <button class="filter-chip" data-filter="my">My Tasks</button>
             </div>
             <div class="timeline" id="timeline">
-                <div class="timeline-loading">Cargando cronograma...</div>
+                <div class="timeline-loading">Loading schedule...</div>
             </div>
         </main>
 
+        <!-- Bottom Navigation -->
         <nav class="bottom-nav">
             <button class="bottom-nav-btn active" data-view="schedule">
                 <span class="bottom-nav-icon">📅</span>
-                <span class="bottom-nav-label">Mi Día</span>
+                <span class="bottom-nav-label">Schedule</span>
             </button>
             <button class="bottom-nav-btn" data-view="team">
                 <span class="bottom-nav-icon">👥</span>
-                <span class="bottom-nav-label">Equipo</span>
+                <span class="bottom-nav-label">Team</span>
             </button>
             <button class="bottom-nav-btn" data-view="tasks">
                 <span class="bottom-nav-icon">✅</span>
-                <span class="bottom-nav-label">Tareas</span>
+                <span class="bottom-nav-label">Tasks</span>
             </button>
             <button class="bottom-nav-btn" data-view="info">
                 <span class="bottom-nav-icon">ℹ️</span>
@@ -188,88 +166,120 @@
         </nav>
     </div>
 
-    <!-- Team View -->
+    <!-- ==================== TEAM VIEW ==================== -->
     <div id="teamView" class="view-panel">
         <div class="view-header">
-            <h2>👥 Equipo</h2>
-            <span class="view-subtitle" id="teamCount">0 miembros</span>
+            <h2>Team</h2>
+            <span class="view-subtitle" id="teamCount">0 members</span>
         </div>
-        <div class="team-grid" id="teamGrid"><div class="team-loading">Cargando...</div></div>
+        <div class="filter-bar">
+            <button class="filter-chip active" data-team-filter="all">All</button>
+            <button class="filter-chip" data-team-filter="alpha">Alpha</button>
+            <button class="filter-chip" data-team-filter="beta">Beta</button>
+            <button class="filter-chip" data-team-filter="gamma">Gamma</button>
+            <button class="filter-chip" data-team-filter="delta">Delta</button>
+        </div>
+        <div class="team-grid" id="teamGrid"><div class="team-loading">Loading...</div></div>
     </div>
 
-    <!-- Tasks View -->
+    <!-- ==================== TASKS VIEW ==================== -->
     <div id="tasksView" class="view-panel">
-        <div class="view-header"><h2>✅ Mis Tareas</h2></div>
-        <div class="tasks-list" id="tasksList"><div class="tasks-loading">Cargando...</div></div>
+        <div class="view-header">
+            <h2>My Tasks</h2>
+            <span class="view-subtitle" id="tasksCount">0 tasks</span>
+        </div>
+        <div class="filter-bar">
+            <button class="filter-chip active" data-task-filter="all">All</button>
+            <button class="filter-chip" data-task-filter="pending">Pending</button>
+            <button class="filter-chip" data-task-filter="completed">Completed</button>
+        </div>
+        <div class="tasks-list" id="tasksList"><div class="tasks-loading">Loading...</div></div>
     </div>
 
-    <!-- Info View -->
+    <!-- ==================== INFO VIEW ==================== -->
     <div id="infoView" class="view-panel">
-        <div class="view-header"><h2>ℹ️ Información</h2></div>
+        <div class="view-header"><h2>Information</h2></div>
         <div class="info-content">
             <div class="info-card">
-                <h3>👥 Equipo SEM 2026</h3>
-                <p>15 integrantes</p>
-            </div>
-            <div class="info-card">
-                <h3>📋 Grupos</h3>
-                <div class="info-groups">
-                    <div class="group-badge alpha">Alpha</div>
-                    <div class="group-badge beta">Beta</div>
-                    <div class="group-badge gamma">Gamma</div>
-                    <div class="group-badge delta">Delta</div>
+                <h3>Team SEM Brasil 2026</h3>
+                <p>EIA Racing · 15 members · 4 groups</p>
+                <div class="info-groups mt-8">
+                    <span class="group-badge alpha">Alpha</span>
+                    <span class="group-badge beta">Beta</span>
+                    <span class="group-badge gamma">Gamma</span>
+                    <span class="group-badge delta">Delta</span>
                 </div>
             </div>
             <div class="info-card">
-                <h3>🔗 Enlaces</h3>
-                <a href="https://results.sem-app.com/app/sem_2026_br/schedule" target="_blank" class="info-link">Cronograma Oficial SEM</a>
-                <a href="admin.html" target="_blank" class="info-link">🔐 Panel Admin</a>
+                <h3>Quick Links</h3>
+                <a href="https://results.sem-app.com/app/sem_2026_br/schedule" target="_blank" class="info-link">Official SEM Schedule →</a>
+                <a href="admin.html" target="_blank" class="info-link">Admin Panel →</a>
+            </div>
+            <div class="info-card">
+                <h3>Schedule Overview</h3>
+                <p><strong>Aug 21</strong> — Arrival / Car Reception</p>
+                <p><strong>Aug 22-23</strong> — Preparation & Assembly</p>
+                <p><strong>Aug 24-27</strong> — Competition</p>
+                <p><strong>Aug 28</strong> — Departure</p>
             </div>
         </div>
     </div>
 
-    <div id="activityDetailModal" class="activity-modal">
-        <div class="activity-modal-card">
-            <button id="activityDetailClose" class="activity-modal-close" type="button">✖</button>
-            <h3 id="activityDetailTitle">Actividad</h3>
-            <p id="activityDetailTime" class="activity-modal-time">--:--</p>
+    <!-- ==================== ACTIVITY DETAIL MODAL ==================== -->
+    <div id="activityDetailModal" class="modal-overlay">
+        <div class="modal-card" style="position:relative">
+            <button id="activityDetailClose" class="modal-close" type="button">✕</button>
+            <h3 class="modal-title" id="activityDetailTitle">Activity</h3>
+            <p class="modal-time" id="activityDetailTime">--:--</p>
 
-            <div class="activity-modal-section">
-                <h4>Descripción general</h4>
-                <p id="activityDetailGeneral">-</p>
+            <div class="modal-section">
+                <h4>Description</h4>
+                <p id="activityDetailGeneral" style="font-size:13px;color:var(--text-secondary)">-</p>
             </div>
 
-            <div class="activity-modal-section">
-                <h4>Mi tarea</h4>
-                <p id="activityDetailRole">-</p>
+            <div class="modal-section">
+                <h4>Your Task</h4>
+                <p id="activityDetailRole" style="font-size:13px;color:var(--accent-primary);font-weight:600">-</p>
             </div>
 
-            <div class="activity-modal-section">
-                <h4>Mi subtarea personal</h4>
-                <p id="activityDetailPersonal">-</p>
+            <div class="modal-section" id="activityDetailGroupProgressSection" style="display:none">
+                <h4>Group Progress</h4>
+                <p id="activityDetailGroupProgress" style="font-size:12px;color:var(--text-muted)"></p>
             </div>
 
-            <div class="activity-modal-actions">
-                <label class="check-row"><input type="checkbox" id="activityDetailTaskCheck" disabled> Tarea general completada</label>
-                <button id="activityDetailTaskToggleBtn" class="btn btn-outline btn-full" type="button">Marcar / Desmarcar tarea</button>
+            <div class="modal-section" id="activityDetailSubtasksSection" style="display:none">
+                <h4>Your Tasks</h4>
+                <div id="activityDetailSubtasks" class="subtasks-list"></div>
             </div>
 
-            <div class="activity-modal-actions" id="activityDetailSubtaskWrap" style="display:none">
-                <label class="check-row"><input type="checkbox" id="activityDetailSubtaskCheck" disabled> Subtarea personal completada</label>
-                <button id="activityDetailSubtaskToggleBtn" class="btn btn-outline btn-full" type="button">Marcar / Desmarcar subtarea</button>
+            <div class="modal-section">
+                <h4>Assigned People</h4>
+                <div id="activityDetailAssignees" class="modal-assignees"></div>
             </div>
 
-            <div class="activity-modal-actions">
-                <button id="activityDetailGroupCompleteBtn" class="btn btn-primary btn-full" type="button" style="display:none">Cerrar tarea grupal (Admin)</button>
+            <hr style="border:none;border-top:1px solid var(--border-color);margin:12px 0">
+
+            <div class="modal-section">
+                <div style="display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap">
+                    <button id="activityDetailTaskToggleBtn" class="btn btn-outline btn-small" type="button">✓ Mark as done</button>
+                    <button id="activityDetailGroupCompleteBtn" class="btn btn-primary btn-small" type="button" style="display:none">✓ Complete for all</button>
+                </div>
             </div>
+        </div>
+    </div>
+
+    <!-- ==================== PERSON DETAIL MODAL ==================== -->
+    <div id="personDetailModal" class="modal-overlay">
+        <div class="modal-card" style="position:relative">
+            <button id="personDetailClose" class="modal-close" type="button">✕</button>
+            <div id="personDetailContent"></div>
         </div>
     </div>
 
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./service-worker.js?v=3')
-                    .catch(() => {});
+                navigator.serviceWorker.register('./service-worker.js?v=3').catch(() => {});
             });
         }
     </script>
