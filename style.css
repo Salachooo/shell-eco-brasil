@@ -79,6 +79,12 @@ body {
 .screen { display: none; height: 100vh; height: 100dvh; overflow-y: auto; overflow-x: hidden; }
 .screen.active { display: flex; flex-direction: column; }
 
+/* Safe area padding for iOS devices with notch/dynamic island */
+.screen {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 /* =============================================
    LOGIN SCREEN
    ============================================= */
@@ -983,6 +989,11 @@ select {
 .admin-body { background: var(--bg-primary); }
 
 .admin-header { padding-bottom: 0; }
+
+/* iOS safe-area for admin header */
+.admin-header {
+  padding-top: max(10px, env(safe-area-inset-top));
+}
 
 .admin-tabs {
   display: flex; gap: 4px; overflow-x: auto;
