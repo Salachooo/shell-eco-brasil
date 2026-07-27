@@ -1,54 +1,61 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#1a1a2e">
+    <meta name="theme-color" content="#0d1117">
     <meta name="description" content="Admin Panel - SEM Brasil 2026">
-    <title>Admin | SEM Brasil 2026</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SEM Admin">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="shortcut icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚙️</text></svg>">
+    <title>Admin · SEM Brasil 2026</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="admin-body">
+    <!-- ==================== LOGIN ==================== -->
     <div id="adminLoginScreen" class="screen active">
         <div class="login-container">
             <div class="login-logo">
-                <div class="logo-icon">⚙️</div>
+                <div class="login-logo-icon">⚙️</div>
                 <h1>Admin Panel</h1>
-                <p class="login-subtitle">SEM Brasil 2026</p>
+                <p class="login-subtitle">Shell Eco-marathon · Team Operations</p>
             </div>
             <form id="adminLoginForm" class="login-form">
                 <div class="input-group">
-                    <label for="adminUser">Usuario Admin</label>
-                    <input type="text" id="adminUser" placeholder="admin" required>
+                    <label for="adminUser">Username</label>
+                    <input type="text" id="adminUser" placeholder="ej: samuel-salazar" required autocomplete="username">
                 </div>
                 <div class="input-group">
-                    <label for="adminPass">Contraseña</label>
-                    <input type="password" id="adminPass" placeholder="Contraseña" required>
+                    <label for="adminPass">Password</label>
+                    <input type="password" id="adminPass" placeholder="••••••" required autocomplete="current-password">
                 </div>
                 <button type="submit" class="btn btn-primary btn-full" id="adminLoginBtn">
-                    <span class="btn-text">Ingresar</span>
+                    <span class="btn-text">Sign in</span>
                     <span class="btn-loader"></span>
                 </button>
                 <p id="adminLoginError" class="login-error"></p>
             </form>
             <p style="margin-top:16px;font-size:12px;color:var(--text-muted);text-align:center">
-                Los admins inician sesión con su usuario (nombre en minúsculas, sin espacios). 
-                Ej: <strong>samuel-salazar</strong>
+                Sign in with your admin account username
             </p>
-            <a href="index.html" class="login-back-link">← App principal</a>
+            <a href="index.html" class="login-back-link">← Main app</a>
         </div>
     </div>
 
+    <!-- ==================== ADMIN APP ==================== -->
     <div id="adminAppScreen" class="screen">
         <header class="app-header admin-header">
             <div class="header-top">
-                <div class="header-left">
-                    <span class="header-greeting">⚙️ Admin:</span>
-                    <span class="header-name" id="adminName">Samuel</span>
+                <div class="app-title">
+                    <span>⚙️</span>
+                    <span><span class="app-title-accent">Admin</span> Panel <span class="app-title-sub" id="adminName">loading...</span></span>
                 </div>
                 <div class="header-right">
-                    <button id="adminLogoutBtn" class="icon-btn" title="Cerrar sesión">🚪</button>
+                    <button id="adminLogoutBtn" class="btn-icon" title="Sign out">🚪</button>
                 </div>
             </div>
             <div class="header-clock">
@@ -58,32 +65,32 @@
             </div>
             <nav class="admin-tabs" id="adminTabs">
                 <button class="admin-tab active" data-tab="dashboard">📊 Dashboard</button>
-                <button class="admin-tab" data-tab="activities">📅 Actividades</button>
-                <button class="admin-tab" data-tab="people">🧍 Personas</button>
-                <button class="admin-tab" data-tab="members">👥 Miembros</button>
+                <button class="admin-tab" data-tab="activities">📅 Activities</button>
+                <button class="admin-tab" data-tab="assign">📝 Assignments</button>
+                <button class="admin-tab" data-tab="people">👥 People</button>
             </nav>
         </header>
 
         <main class="admin-main">
-            <!-- DASHBOARD TAB -->
+            <!-- ========== DASHBOARD ========== -->
             <div class="admin-tab-content active" id="tab-dashboard">
                 <div class="section-header">
-                    <h2>📊 Dashboard en Vivo</h2>
+                    <h2>Live Dashboard</h2>
                     <select id="dashboardDaySelect">
-                        <option value="2026-08-21">21 - Llegada</option>
-                        <option value="2026-08-22">22 - Preparación</option>
-                        <option value="2026-08-23">23 - Ensamblaje</option>
-                        <option value="2026-08-24" selected>24 - Competencia D1</option>
-                        <option value="2026-08-25">25 - Competencia D2</option>
-                        <option value="2026-08-26">26 - Competencia D3</option>
-                        <option value="2026-08-27">27 - Competencia D4</option>
+                        <option value="2026-08-21">21 - Arrival</option>
+                        <option value="2026-08-22">22 - Prep</option>
+                        <option value="2026-08-23">23 - Assembly</option>
+                        <option value="2026-08-24" selected>24 - Competition D1</option>
+                        <option value="2026-08-25">25 - Competition D2</option>
+                        <option value="2026-08-26">26 - Competition D3</option>
+                        <option value="2026-08-27">27 - Competition D4</option>
                     </select>
                 </div>
                 <div id="dashboardSummaryCards" class="dashboard-summary-cards"></div>
                 <div class="dashboard-table-container">
                     <table class="dashboard-table">
-                        <thead><tr><th>Persona</th><th>Grupo</th><th>Tarea Actual</th><th>Actividad</th></tr></thead>
-                        <tbody id="dashboardBody"><tr><td colspan="4" class="loading-row">Cargando...</td></tr></tbody>
+                        <thead><tr><th>Person</th><th>Group</th><th>Current Task</th><th>Activity</th><th>Done</th></tr></thead>
+                        <tbody id="dashboardBody"><tr><td colspan="5" class="loading-row">Loading...</td></tr></tbody>
                     </table>
                 </div>
                 <div class="dashboard-legend">
@@ -94,185 +101,246 @@
                 </div>
             </div>
 
-            <!-- ACTIVITIES TAB -->
+            <!-- ========== ACTIVITIES ========== -->
             <div class="admin-tab-content" id="tab-activities">
                 <div class="section-header">
-                    <h2>📅 Actividades</h2>
+                    <h2>Activities</h2>
                     <select id="activitiesDaySelect">
-                        <option value="2026-08-21">21 - Llegada</option>
-                        <option value="2026-08-22">22 - Preparación</option>
-                        <option value="2026-08-23">23 - Ensamblaje</option>
-                        <option value="2026-08-24" selected>24 - Competencia D1</option>
-                        <option value="2026-08-25">25 - Competencia D2</option>
-                        <option value="2026-08-26">26 - Competencia D3</option>
-                        <option value="2026-08-27">27 - Competencia D4</option>
+                        <option value="2026-08-21">21 - Arrival</option>
+                        <option value="2026-08-22">22 - Prep</option>
+                        <option value="2026-08-23">23 - Assembly</option>
+                        <option value="2026-08-24" selected>24 - Competition D1</option>
+                        <option value="2026-08-25">25 - Competition D2</option>
+                        <option value="2026-08-26">26 - Competition D3</option>
+                        <option value="2026-08-27">27 - Competition D4</option>
                     </select>
                 </div>
 
-                <!-- CREATE ACTIVITY CARD -->
-                <div class="activity-form-card">
-                    <h3>➕ Nueva Actividad</h3>
-                    <form id="activityForm">
-                        <div class="input-group">
-                            <label>Fecha</label>
-                            <input type="date" id="activityDate" required>
+                <div class="admin-card">
+                    <h3>Create Activity</h3>
+                    <form id="activityForm" style="display:flex;flex-direction:column;gap:10px">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                            <div class="input-group" style="margin:0">
+                                <label>Date</label>
+                                <input type="date" id="activityDate" required>
+                            </div>
+                            <div class="input-group" style="margin:0">
+                                <label>Time</label>
+                                <input type="time" id="activityTime" required>
+                            </div>
                         </div>
-                        <div class="input-group">
-                            <label>Hora</label>
-                            <input type="time" id="activityTime" required>
-                        </div>
-                        <div class="input-group">
-                            <label>Duración (min)</label>
-                            <input type="number" id="activityDuration" placeholder="120" min="15" step="15" value="120">
-                        </div>
-                        <div class="input-group">
-                            <label>Título</label>
-                            <input type="text" id="activityTitle" placeholder="Ej: Technical Inspection" required>
-                        </div>
-                        <div class="input-group">
-                            <label>Descripción general</label>
-                            <textarea id="activityDescription" rows="3" placeholder="Breve instrucción para todo el equipo"></textarea>
-                        </div>
-                        <div class="input-group">
-                            <label>Tipo</label>
-                            <select id="activityType">
-                                <option value="team_activity">👥 Actividad Grupal</option>
-                                <option value="meeting">📋 Reunión</option>
-                                <option value="competition">🏁 Competencia</option>
-                                <option value="practice">🔧 Prácticas</option>
-                                <option value="meal">🍽️ Comida</option>
-                                <option value="free_time">⏸️ Tiempo Libre</option>
-                                <option value="hotel_departure">🏨 Salida Hotel</option>
-                                <option value="venue_departure">🏁 Salida Venue</option>
-                            </select>
-                        </div>
-                        <div class="input-group">
-                            <label>Icono</label>
-                            <input type="text" id="activityIcon" placeholder="🔧" maxlength="2">
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-full">Crear Actividad</button>
-                    </form>
-                </div>
-
-                <!-- ASSIGNMENTS SECTION -->
-                <div class="assign-section">
-                    <h3>📝 Asignaciones por Actividad</h3>
-                    <div class="assign-toolbar">
-                        <select id="assignActivitySelect">
-                            <option value="">Seleccionar actividad...</option>
-                        </select>
-                    </div>
-                    <div id="assignFormContainer" style="display:none">
-                        <form id="assignForm">
-                            <div class="input-group">
-                                <label>Asignar a</label>
-                                <select id="assignTarget" required>
-                                    <option value="">Seleccionar...</option>
-                                    <option value="all">👥 Todos</option>
-                                    <option value="admins">⭐ Admins</option>
-                                    <option value="group_alpha">🅰️ Grupo Alpha</option>
-                                    <option value="group_beta">🅱️ Grupo Beta</option>
-                                    <option value="group_gamma">🅶 Grupo Gamma</option>
-                                    <option value="group_delta">🅳 Grupo Delta</option>
-                                    <option value="individual">👤 Persona Específica</option>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                            <div class="input-group" style="margin:0">
+                                <label>Duration (min)</label>
+                                <input type="number" id="activityDuration" placeholder="120" min="15" step="15" value="120">
+                            </div>
+                            <div class="input-group" style="margin:0">
+                                <label>Type</label>
+                                <select id="activityType">
+                                    <option value="team_activity">Team Activity</option>
+                                    <option value="meeting">Meeting</option>
+                                    <option value="competition">Competition</option>
+                                    <option value="practice">Practice</option>
+                                    <option value="assembly">Assembly</option>
+                                    <option value="meal">Meal</option>
+                                    <option value="free_time">Free Time</option>
                                 </select>
                             </div>
-                            <div class="input-group" id="assignPersonGroup" style="display:none;">
-                                <label>Persona</label>
-                                <select id="assignPerson"><option value="">Seleccionar...</option></select>
-                            </div>
-                            <div class="input-group">
-                                <label>Tarea</label>
-                                <input type="text" id="assignRole" placeholder="Ej: Managing Paddock" required>
-                            </div>
-                            <button type="submit" class="btn btn-outline btn-full">Asignar</button>
-                        </form>
+                        </div>
+                        <div class="input-group" style="margin:0">
+                            <label>Title</label>
+                            <input type="text" id="activityTitle" placeholder="e.g. Technical Inspection" required>
+                        </div>
+                        <div class="input-group" style="margin:0">
+                            <label>Description</label>
+                            <textarea id="activityDescription" rows="2" placeholder="Brief description for the team"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full" style="margin-top:4px">Create Activity</button>
+                    </form>
+                </div>
+
+                <h3 style="font-size:14px;color:var(--text-secondary);margin-bottom:8px">Timeline</h3>
+                <div id="activitiesListContent"><p class="text-muted">Select a day.</p></div>
+            </div>
+
+            <!-- ========== ASSIGNMENTS (Redesigned) ========== -->
+            <div class="admin-tab-content" id="tab-assign">
+                <div class="section-header">
+                    <h2>Assignments</h2>
+                    <select id="assignDaySelect">
+                        <option value="2026-08-21">21 - Arrival</option>
+                        <option value="2026-08-22">22 - Prep</option>
+                        <option value="2026-08-23">23 - Assembly</option>
+                        <option value="2026-08-24" selected>24 - Competition D1</option>
+                        <option value="2026-08-25">25 - Competition D2</option>
+                        <option value="2026-08-26">26 - Competition D3</option>
+                        <option value="2026-08-27">27 - Competition D4</option>
+                    </select>
+                </div>
+
+                <div id="assignActivitySelector" style="margin-bottom:12px">
+                    <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">Select Activity</label>
+                    <select id="assignActivitySelect" style="width:100%">
+                        <option value="">Loading...</option>
+                    </select>
+                </div>
+
+                <div id="assignPanel" style="display:none">
+                    <!-- Current Assignments -->
+                    <div class="admin-card">
+                        <h3>Current Assignments</h3>
+                        <div id="assignCurrentList"><p class="text-muted">No assignments yet.</p></div>
                     </div>
-                    <div id="activityAssignmentsList" style="margin-top:12px"></div>
-                </div>
 
-                <div class="assign-section">
-                    <h3>🧩 Subtareas Personales</h3>
-                    <p class="text-muted" style="padding:0 0 8px">Añade subtareas por persona dentro de una actividad general.</p>
-                    <form id="subtaskForm">
-                        <div class="input-group">
-                            <label>Actividad</label>
-                            <select id="subtaskActivitySelect">
-                                <option value="">Seleccionar actividad...</option>
-                            </select>
+                    <!-- New Assignment -->
+                    <div class="admin-card">
+                        <h3>New Assignment</h3>
+                        
+                        <!-- Segmented control: Who gets assigned -->
+                        <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px">Assign to</label>
+                        <div class="segmented-control" id="assignScopeSegmented">
+                            <button class="segmented-option active" data-scope="all">👥 Everyone</button>
+                            <button class="segmented-option" data-scope="group">🅰️ Group</button>
+                            <button class="segmented-option" data-scope="person">👤 Person</button>
                         </div>
-                        <div class="input-group">
-                            <label>Persona</label>
-                            <select id="subtaskPersonSelect">
-                                <option value="">Seleccionar persona...</option>
-                            </select>
-                        </div>
-                        <div class="input-group">
-                            <label>Subtarea</label>
-                            <input type="text" id="subtaskText" placeholder="Ej: Verificar presión de llantas" required>
-                        </div>
-                        <button type="submit" class="btn btn-outline btn-full">Asignar subtarea</button>
-                    </form>
-                    <div id="subtasksList" style="margin-top:12px"></div>
-                </div>
 
-                <!-- ACTIVITIES LIST -->
-                <div class="activities-list-section">
-                    <h3>📋 Actividades del Día</h3>
-                    <div id="activitiesListContent"><p class="text-muted">Selecciona un día.</p></div>
+                        <!-- Dynamic fields based on scope -->
+                        <div style="margin-top:10px">
+                            <!-- Group selector (hidden by default, shown when group selected) -->
+                            <div id="assignGroupField" class="input-group" style="margin-bottom:8px;display:none">
+                                <label>Group</label>
+                                <select id="assignGroupSelect">
+                                    <option value="alpha">🅰️ Alpha</option>
+                                    <option value="beta">🅱️ Beta</option>
+                                    <option value="gamma">🅶 Gamma</option>
+                                    <option value="delta">🅳 Delta</option>
+                                </select>
+                            </div>
+
+                            <!-- Person selector (hidden by default, shown when person selected) -->
+                            <div id="assignPersonField" class="input-group" style="margin-bottom:8px;display:none">
+                                <label>Person</label>
+                                <select id="assignPersonSelect">
+                                    <option value="">Select person...</option>
+                                </select>
+                            </div>
+
+                            <div class="input-group" style="margin-bottom:8px">
+                                <label>Task description</label>
+                                <input type="text" id="assignRoleInput" placeholder="e.g. Managing Paddock" style="font-size:13px">
+                            </div>
+
+                            <button id="assignBtn" class="btn btn-outline btn-full" type="button">Assign Task</button>
+                        </div>
+                    </div>
+
+                    <!-- Personal Sub-tasks (array-based, multiple per person) -->
+                    <div class="admin-card">
+                        <h3>Personal Sub-tasks</h3>
+                        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Add individual sub-tasks for specific people (they'll see them under the activity)</p>
+                        
+                        <div class="assign-form-row">
+                            <div class="input-group" style="flex:1">
+                                <label>Person</label>
+                                <select id="subtaskPersonSelect">
+                                    <option value="">Select person...</option>
+                                </select>
+                            </div>
+                            <div class="input-group" style="flex:2">
+                                <label>Sub-task</label>
+                                <input type="text" id="subtaskText" placeholder="e.g. Reserve lunch" style="font-size:13px">
+                            </div>
+                            <button id="subtaskBtn" class="btn btn-outline btn-small" type="button" style="margin-bottom:0;white-space:nowrap">+ Add</button>
+                        </div>
+                        
+                        <div id="subtasksList" style="margin-top:8px"></div>
+                    </div>
+
+                    <div class="admin-card" id="assemblyStagesCard" style="display:none">
+                        <h3>Assembly Stages (Sequential)</h3>
+                        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Create stages, assign each one, and drag to define the order. Stages unlock in sequence for members.</p>
+
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                            <div class="input-group" style="margin:0">
+                                <label>Stage title</label>
+                                <input type="text" id="assemblyStageTitle" placeholder="e.g. Montaje chasis" style="font-size:13px">
+                            </div>
+                            <div class="input-group" style="margin:0">
+                                <label>Assign stage to</label>
+                                <select id="assemblyStageScope">
+                                    <option value="all">👥 Everyone</option>
+                                    <option value="group_alpha">🅰️ Group Alpha</option>
+                                    <option value="group_beta">🅱️ Group Beta</option>
+                                    <option value="group_gamma">🅶 Group Gamma</option>
+                                    <option value="group_delta">🅳 Group Delta</option>
+                                    <option value="admins">⭐ Admins</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="assign-form-row" style="margin-top:8px">
+                            <div class="input-group" style="flex:1;margin:0">
+                                <label>Or specific person</label>
+                                <select id="assemblyStagePersonSelect">
+                                    <option value="">No specific person</option>
+                                </select>
+                            </div>
+                            <div class="input-group" style="flex:1;margin:0">
+                                <label>Depends on (optional)</label>
+                                <select id="assemblyStageDependsOn">
+                                    <option value="">None (first available)</option>
+                                </select>
+                            </div>
+                            <button id="assemblyStageAddBtn" class="btn btn-outline btn-small" type="button" style="align-self:flex-end;white-space:nowrap">+ Add Stage</button>
+                        </div>
+
+                        <div id="assemblyStagesList" style="margin-top:10px"></div>
+                    </div>
                 </div>
             </div>
 
+            <!-- ========== PEOPLE ========== -->
             <div class="admin-tab-content" id="tab-people">
-                <div class="section-header"><h2>🧍 Personas</h2></div>
-                <div id="peopleSelector" class="people-selector-grid"></div>
-                <div id="personWeeklyDetail" class="person-weekly-detail">
-                    <p class="text-muted">Selecciona una persona para ver su semana.</p>
-                </div>
-            </div>
-
-            <!-- MEMBERS TAB -->
-            <div class="admin-tab-content" id="tab-members">
-                <div class="section-header"><h2>👥 Miembros</h2></div>
-                <div class="members-form-card">
-                    <h3>Agregar Miembro</h3>
-                    <form id="memberForm">
-                        <div class="input-group">
-                            <label>Nombre</label>
-                            <input type="text" id="memberName" placeholder="Nombre" required>
+                <div class="section-header"><h2>People</h2></div>
+                <div class="admin-card">
+                    <h3>Add Member</h3>
+                    <form id="memberForm" style="display:flex;flex-direction:column;gap:8px">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                            <div class="input-group" style="margin:0">
+                                <label>Name</label>
+                                <input type="text" id="memberName" placeholder="Full name" required>
+                            </div>
+                            <div class="input-group" style="margin:0">
+                                <label>Username</label>
+                                <input type="text" id="memberUser" placeholder="e.g. ana-garcia" required>
+                            </div>
                         </div>
-                        <div class="input-group">
-                            <label>Usuario</label>
-                            <input type="text" id="memberUser" placeholder="usuario" required>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                            <div class="input-group" style="margin:0">
+                                <label>Group</label>
+                                <select id="memberGroup">
+                                    <option value="alpha">Alpha</option>
+                                    <option value="beta">Beta</option>
+                                    <option value="gamma">Gamma</option>
+                                    <option value="delta">Delta</option>
+                                </select>
+                            </div>
+                            <div class="input-group" style="margin:0">
+                                <label>Role</label>
+                                <input type="text" id="memberRole" placeholder="e.g. Mechanic">
+                            </div>
                         </div>
-                        <div class="input-group">
-                            <label>Grupo</label>
-                            <select id="memberGroup">
-                                <option value="alpha">Alpha</option>
-                                <option value="beta">Beta</option>
-                                <option value="gamma">Gamma</option>
-                                <option value="delta">Delta</option>
-                            </select>
-                        </div>
-                        <div class="input-group">
-                            <label>Rol</label>
-                            <input type="text" id="memberRole" placeholder="Ej: Mecánico">
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-full">Agregar (pass: eco2026)</button>
+                        <button type="submit" class="btn btn-primary btn-full" style="margin-top:4px">Add (pass: eco2026)</button>
                     </form>
                 </div>
-                <div class="members-list">
-                    <h3>Miembros</h3>
-                    <div id="membersListContent"><p class="text-muted">Cargando...</p></div>
-                </div>
+                <div id="membersListContent"><p class="text-muted">Loading...</p></div>
             </div>
         </main>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-    <script src="firebase-config.js?v=7"></script>
-    <script src="seed-data.js?v=7"></script>
-    <script src="admin.js?v=7"></script>
+    <script src="firebase-config.js?v=8"></script>
+    <script src="seed-data.js?v=8"></script>
+    <script src="admin.js?v=8"></script>
 </body>
 </html>

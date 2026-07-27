@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Experimental local workflow: allow app operations.
+    // Tighten these rules when introducing Firebase Auth in production.
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

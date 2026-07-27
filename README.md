@@ -23,6 +23,90 @@ Aplicación web progresiva (PWA) para gestionar el itinerario y las tareas del e
 - **Hosting:** GitHub Pages
 - **PWA:** Service Worker + Manifest
 
+## 🧪 Rama Experimental Local (con emulador)
+
+Esta guía permite iterar cambios en la rama `experimental` con backend local simulado y luego mergear a `main` sin romper producción.
+
+### 1. Cambiar a rama experimental
+
+```bash
+git fetch --all --prune
+git switch experimental
+git pull
+```
+
+### 2. Instalar dependencias de desarrollo
+
+```bash
+npm install
+```
+
+### 3. Iniciar backend local simulado
+
+```bash
+npm run emulators
+```
+
+Servicios locales:
+- App local: `http://127.0.0.1:5000`
+- Firestore Emulator: `127.0.0.1:8081`
+- Emulator UI: `http://127.0.0.1:4000`
+
+### 4. Cargar datos semilla
+
+1. Abre `http://127.0.0.1:5000`
+2. Abre consola del navegador (F12)
+3. Ejecuta `seedAllData()`
+
+### 5. Inicio plug-and-play (Windows, 1 click)
+
+Se incluye un lanzador en el Escritorio:
+
+- `C:\Users\Samuel Salazar\Desktop\SEM-Brasil-Local.bat`
+
+Qué hace:
+- Ajusta `PATH` para Node.js en la sesión.
+- Configura memoria Node (`NODE_OPTIONS=--max-old-space-size=4096`) para evitar OOM.
+- Entra al repo local.
+- Corre `npm install` si faltan dependencias.
+- Si detecta puertos 5000/8081 ocupados, asume emuladores ya activos y abre la app sin reiniciar servicios.
+- Inicia emuladores con `npm run emulators`.
+- Abre `http://127.0.0.1:5000` en el navegador.
+
+### 6. Persistir datos del emulador entre sesiones (opcional)
+
+```bash
+npm run emulators:persist
+```
+
+Esto guarda datos en `.emulator-data/` al cerrar.
+
+### 6. Confirmar modo local vs producción
+
+- En localhost la app conecta a emulador automáticamente.
+- En GitHub Pages la app sigue conectando a Firestore cloud.
+
+El switch está implementado en `firebase-config.js` por detección de host local.
+
+### 7. Flujo seguro para merge a main
+
+```bash
+git switch experimental
+git pull
+# desarrollar y commitear
+git push
+
+git switch main
+git pull
+git merge experimental
+git push
+```
+
+Checklist antes del merge:
+- Probar login/app/admin en localhost con emulador.
+- Revisar que no haya credenciales nuevas ni cambios peligrosos de producción.
+- Verificar que `firebase-config.js` conserva fallback a cloud fuera de localhost.
+
 ## 📋 Setup Instructions
 
 ### 1. Firebase Setup
