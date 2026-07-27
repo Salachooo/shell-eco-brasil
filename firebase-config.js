@@ -17,6 +17,19 @@ firebase.initializeApp(firebaseConfig);
 
 const db = firebase.firestore();
 
+// Local development: route Firestore calls to Emulator Suite.
+const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const forceEmulator = localStorage.getItem('sem2026_use_emulator') === 'true';
+
+if (isLocalHost || forceEmulator) {
+    try {
+        db.useEmulator('127.0.0.1', 8080);
+        console.log('Firestore Emulator enabled at 127.0.0.1:8080');
+    } catch (err) {
+        console.warn('Firestore Emulator unavailable, using cloud Firestore:', err.message);
+    }
+}
+
 // Enable offline persistence
 db.enablePersistence()
     .catch(function(err) {

@@ -1,4 +1,13 @@
 {
+  "name": "app-schedule",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "emulators": "firebase emulators:start --project eiaracing --only firestore,hosting,ui",
+    "emulators:persist": "firebase emulators:start --project eiaracing --only firestore,hosting,ui --import ./.emulator-data --export-on-exit",
+    "seed:instructions": "echo Open http://127.0.0.1:5000 then run seedAllData() in browser console",
+    "setup:local": "npm run emulators"
+  },
   "devDependencies": {
     "firebase-tools": "^15.24.0"
   }
