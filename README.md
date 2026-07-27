@@ -49,7 +49,7 @@ npm run emulators
 
 Servicios locales:
 - App local: `http://127.0.0.1:5000`
-- Firestore Emulator: `127.0.0.1:8080`
+- Firestore Emulator: `127.0.0.1:8081`
 - Emulator UI: `http://127.0.0.1:4000`
 
 ### 4. Cargar datos semilla
@@ -58,7 +58,22 @@ Servicios locales:
 2. Abre consola del navegador (F12)
 3. Ejecuta `seedAllData()`
 
-### 5. Persistir datos del emulador entre sesiones (opcional)
+### 5. Inicio plug-and-play (Windows, 1 click)
+
+Se incluye un lanzador en el Escritorio:
+
+- `C:\Users\Samuel Salazar\Desktop\SEM-Brasil-Local.bat`
+
+Qué hace:
+- Ajusta `PATH` para Node.js en la sesión.
+- Configura memoria Node (`NODE_OPTIONS=--max-old-space-size=4096`) para evitar OOM.
+- Entra al repo local.
+- Corre `npm install` si faltan dependencias.
+- Si detecta puertos 5000/8081 ocupados, asume emuladores ya activos y abre la app sin reiniciar servicios.
+- Inicia emuladores con `npm run emulators`.
+- Abre `http://127.0.0.1:5000` en el navegador.
+
+### 6. Persistir datos del emulador entre sesiones (opcional)
 
 ```bash
 npm run emulators:persist

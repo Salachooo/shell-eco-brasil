@@ -33,7 +33,7 @@ const BASE_ACTIVITIES = [
 
     { date: '2026-08-22', time: '07:30', duration: 45, title: 'Desayuno', type: 'meal', icon: '🍽️' },
     { date: '2026-08-22', time: '08:30', duration: 30, title: 'Salida al venue', type: 'venue_departure', icon: '🏁' },
-    { date: '2026-08-22', time: '09:30', duration: 180, title: 'Ensamblaje mecánico', type: 'practice', icon: '🔩' },
+    { date: '2026-08-22', time: '09:30', duration: 180, title: 'Ensamblaje mecánico', type: 'assembly', icon: '🔩' },
     { date: '2026-08-22', time: '13:00', duration: 60, title: 'Almuerzo', type: 'meal', icon: '🍽️' },
     { date: '2026-08-22', time: '14:30', duration: 210, title: 'Cableado y validaciones', type: 'practice', icon: '🔌' },
     { date: '2026-08-22', time: '19:00', duration: 45, title: 'Debrief de preparación', type: 'meeting', icon: '🧠' },
@@ -138,6 +138,14 @@ async function seedActivities() {
             continue;
         }
 
+        const assemblyStages = activity.type === 'assembly'
+            ? [
+                { id: 'stage_chasis', title: 'Montar chasis base', assignmentKey: 'group_alpha', dependsOn: [], order: 0 },
+                { id: 'stage_transmision', title: 'Instalar transmision', assignmentKey: 'group_beta', dependsOn: ['stage_chasis'], order: 1 },
+                { id: 'stage_verificacion', title: 'Verificacion final', assignmentKey: 'admins', dependsOn: ['stage_transmision'], order: 2 }
+            ]
+            : [];
+
         await ref.set({
             date: activity.date,
             time: activity.time,
@@ -148,7 +156,8 @@ async function seedActivities() {
             icon: activity.icon,
             assignments: {},
             personalSubtasks: {},
-            completions: {}
+            completions: {},
+            assemblyStages
         });
         created++;
     }

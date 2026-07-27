@@ -16,6 +16,7 @@ let scheduleUnsubscribes = [];
 let currentFilter = 'all';
 let currentTeamFilter = 'all';
 let currentTaskFilter = 'all';
+let activityDetailState = { activityId: null };
 
 // =============================================
 // SVG CHECKMARK BUILDER
@@ -84,7 +85,7 @@ function getMemberInitial(name) {
 function getSourceBadgeClass(sourceType) {
     const map = {
         'all': 'all', 'admins': 'admins', 'group': 'group',
-        'personal': 'personal', 'subtask': 'subtask'
+        'personal': 'personal', 'subtask': 'subtask', 'assembly': 'assembly'
     };
     return map[sourceType] || '';
 }
@@ -93,7 +94,7 @@ function getSourceBadgeClass(sourceType) {
 function getSourceDisplay(sourceType) {
     const map = {
         'all': 'Everyone', 'admins': 'Admins', 'group': 'Group',
-        'personal': 'Personal', 'subtask': 'Sub-task'
+        'personal': 'Personal', 'subtask': 'Sub-task', 'assembly': 'Assembly'
     };
     return map[sourceType] || sourceType;
 }
@@ -361,17 +362,41 @@ function setupFilters() {
 function getAllAssignmentsForMember(member, block) {
     const a = block.assignments || {};
     const tasks = [];
-    
-    Object.keys(a).forEach(key => {
-        if (key === 'all') {
-            tasks.push({ key: 'all', role: a[key], source: 'Everyone', sourceType: 'all' });
-        } else if (key === 'admins' && member.isAdmin) {
-            tasks.push({ key: 'admins', role: a[key], source: 'Admins', sourceType: 'admins' });
-        } else if (key.startsWith('group_') && member.group === key.replace('group_', '')) {
-            const groupName = key.replace('group_', '').toUpperCase();
-            tasks.push({ key: key, role: a[key], source: `Group ${groupName}`, sourceType: 'group' });
-        } else if (key.startsWith('person_') && member.id === key.replace('person_', '')) {
-            tasks.push({ key: key, role: a[key], source: 'Personal', sourceType: 'personal' });
+
+    Object.keys(a).forEach(assignmentKey => {
+        if (assignmentKey === 'all') {
+            tasks.push({
+                key: buildAssignmentCompletionKey(assignmentKey, member.id),
+                assignmentKey,
+                role: a[assignmentKey],
+                source: 'Everyone',
+                sourceType: 'all'
+            });
+        } else if (assignmentKey === 'admins' && member.isAdmin) {
+            tasks.push({
+                key: buildAssignmentCompletionKey(assignmentKey, member.id),
+                assignmentKey,
+                role: a[assignmentKey],
+                source: 'Admins',
+                sourceType: 'admins'
+            });
+        } else if (assignmentKey.startsWith('group_') && member.group === assignmentKey.replace('group_', '')) {
+            const groupName = assignmentKey.replace('group_', '').toUpperCase();
+            tasks.push({
+                key: buildAssignmentCompletionKey(assignmentKey, member.id),
+                assignmentKey,
+                role: a[assignmentKey],
+                source: `Group ${groupName}`,
+                sourceType: 'group'
+            });
+        } else if (assignmentKey.startsWith('person_') && member.id === assignmentKey.replace('person_', '')) {
+            tasks.push({
+                key: buildAssignmentCompletionKey(assignmentKey, member.id),
+                assignmentKey,
+                role: a[assignmentKey],
+                source: 'Personal',
+                sourceType: 'personal'
+            });
         }
     });
     
@@ -387,8 +412,78 @@ function getAllAssignmentsForMember(member, block) {
             });
         });
     }
+
+    if (block.type === 'assembly' && Array.isArray(block.assemblyStages)) {
+        const stages = getAssemblyStages(block);
+        stages.forEach(stage => {
+            if (doesMemberMatchAssignmentKey(member, stage.assignmentKey)) {
+                tasks.push({
+                    key: `assembly_stage_${stage.id}`,
+                    role: stage.title,
+                    source: 'Assembly',
+                    sourceType: 'assembly',
+                    stageId: stage.id,
+                    locked: isAssemblyStageLockedForUser(block, member, stage.id)
+                });
+            }
+        });
+    }
     
     return tasks;
+}
+
+function buildAssignmentCompletionKey(assignmentKey, memberId) {
+    return `assignment::${assignmentKey}::${memberId}`;
+}
+
+function getLegacyCompletionKeysForTaskKey(key) {
+    if (!key.startsWith('assignment::')) return [];
+    const parts = key.split('::');
+    if (parts.length < 3) return [];
+    const assignmentKey = parts[1];
+    return [assignmentKey];
+}
+
+function getAssemblyStages(block) {
+    if (!block || !Array.isArray(block.assemblyStages)) return [];
+    return [...block.assemblyStages].sort((a, b) => (a.order || 0) - (b.order || 0));
+}
+
+function getAssemblyStageById(block, stageId) {
+    if (!block || !Array.isArray(block.assemblyStages)) return null;
+    return block.assemblyStages.find(stage => stage.id === stageId) || null;
+}
+
+function doesMemberMatchAssignmentKey(member, assignmentKey) {
+    if (!assignmentKey || !member) return false;
+    if (assignmentKey === 'all') return true;
+    if (assignmentKey === 'admins') return !!member.isAdmin;
+    if (assignmentKey.startsWith('group_')) return member.group === assignmentKey.replace('group_', '');
+    if (assignmentKey.startsWith('person_')) return member.id === assignmentKey.replace('person_', '');
+    return false;
+}
+
+function isAssemblyStageLockedForUser(block, member, stageId) {
+    if (!block || block.type !== 'assembly') return false;
+    const stage = getAssemblyStageById(block, stageId);
+    if (!stage) return false;
+
+    const deps = Array.isArray(stage.dependsOn) ? stage.dependsOn : [];
+    if (!deps.length) return false;
+
+    return deps.some(depStageId => {
+        const depKey = `assembly_stage_${depStageId}`;
+        return !isKeyCompleted(block, depKey);
+    });
+}
+
+function canToggleTaskKey(block, member, key) {
+    if (!block || !member || !key) return false;
+    if (key.startsWith('assembly_stage_')) {
+        const stageId = key.replace('assembly_stage_', '');
+        return !isAssemblyStageLockedForUser(block, member, stageId);
+    }
+    return true;
 }
 
 /** Get just the first matching role (for display) */
@@ -406,7 +501,10 @@ function getUserAssignmentInfo(block, user = currentUser) {
 /** Check if a specific completion key is done for a block */
 function isKeyCompleted(block, key) {
     const completions = block.completions || {};
-    return !!(completions[key] && completions[key].completed);
+    if (completions[key] && completions[key].completed) return true;
+
+    const legacyKeys = getLegacyCompletionKeysForTaskKey(key);
+    return legacyKeys.some(legacyKey => completions[legacyKey] && completions[legacyKey].completed);
 }
 
 /** Check if any of the user's tasks is completed (legacy check) */
@@ -433,12 +531,11 @@ function getKeyGroupProgress(block, key) {
     }
 
     const done = members.filter(m => {
-        const memberTasks = getAllAssignmentsForMember(m, block);
-        // Check if this specific key is completed for each member
-        return memberTasks.some(t => {
-            const c = completions[t.key];
-            return c && c.completed;
-        });
+        const taskKey = buildAssignmentCompletionKey(key, m.id);
+        if (completions[taskKey] && completions[taskKey].completed) return true;
+
+        // Backward compatibility with legacy key format.
+        return !!(completions[key] && completions[key].completed);
     }).length;
 
     return { done, total: members.length, role };
@@ -493,7 +590,8 @@ function loadDaySchedule(day) {
                 description: a.description || '',
                 assignments: a.assignments || {},
                 personalSubtasks: a.personalSubtasks || {},
-                completions: a.completions || {}
+                completions: a.completions || {},
+                assemblyStages: Array.isArray(a.assemblyStages) ? a.assemblyStages : []
             }));
 
             const data = { events: blocks };
@@ -501,6 +599,9 @@ function loadDaySchedule(day) {
             renderTimeline(day, data);
             updateCurrentTask();
             updateNextEvent();
+            if (activityDetailState.activityId && document.getElementById('activityDetailModal').classList.contains('active')) {
+                renderActivityDetail(activityDetailState.activityId);
+            }
         }, (err) => {
             console.error('Schedule error:', err);
             if (err.code === 'permission-denied') {
@@ -569,8 +670,9 @@ function renderTimeline(day, data) {
             userTasks.forEach(t => {
                 const completed = isKeyCompleted(block, t.key);
                 const badgeClass = getSourceBadgeClass(t.sourceType);
+                const isLocked = !!t.locked;
                 html += `<div class="timeline-subtask-row ${completed ? 'done' : ''}" data-completion-key="${t.key}" data-activity-id="${block.id}">
-                    ${makeCheckCircleHtml(completed, 'small')}
+                    ${makeCheckCircleHtml(completed, `small ${isLocked ? 'locked' : ''}`)}
                     <span class="timeline-subtask-text">${t.role}</span>
                     <span class="source-badge ${badgeClass}">${getSourceDisplay(t.sourceType)}</span>
                 </div>`;
@@ -625,6 +727,8 @@ function renderTimeline(day, data) {
             const row = check.closest('.timeline-subtask-row');
             const activityId = row.dataset.activityId;
             const key = row.dataset.completionKey;
+            const found = findActivityById(activityId);
+            if (!found || !canToggleTaskKey(found.activity, currentUser, key)) return;
             const isDone = check.classList.contains('checked');
             await toggleKeyCompletion(activityId, key, !isDone);
         });
@@ -634,7 +738,8 @@ function renderTimeline(day, data) {
 function getTypeName(type) {
     const names = {
         team_activity: 'Activity', meeting: 'Meeting', competition: 'Competition',
-        practice: 'Practice', meal: 'Meal', free_time: 'Free', 
+        practice: 'Practice', meal: 'Meal', free_time: 'Free',
+        assembly: 'Assembly',
         hotel_departure: 'Departure', venue_departure: 'Departure'
     };
     return names[type] || type.replace('_', ' ');
@@ -644,6 +749,7 @@ function getTypeColor(type) {
     const colors = {
         team_activity: '#58a6ff', meeting: '#bc8cff', competition: '#f85149',
         practice: '#3fb950', meal: '#d29922', free_time: '#6e7681',
+        assembly: '#39d2c0',
         hotel_departure: '#58a6ff', venue_departure: '#f0883e'
     };
     return colors[type] || '#8b949e';
@@ -652,14 +758,23 @@ function getTypeColor(type) {
 function getAssigneesForBlock(block) {
     const a = block.assignments || {};
     const assigneeIds = new Set();
-    Object.keys(a).forEach(key => {
+    const assignByKey = (key) => {
         if (key === 'all') allMembers.forEach(m => assigneeIds.add(m.id));
         else if (key === 'admins') allMembers.filter(m => m.isAdmin).forEach(m => assigneeIds.add(m.id));
         else if (key.startsWith('group_')) {
             const group = key.replace('group_', '');
             allMembers.filter(m => m.group === group).forEach(m => assigneeIds.add(m.id));
         } else if (key.startsWith('person_')) assigneeIds.add(key.replace('person_', ''));
-    });
+    };
+
+    Object.keys(a).forEach(assignByKey);
+
+    if (block.type === 'assembly' && Array.isArray(block.assemblyStages)) {
+        block.assemblyStages.forEach(stage => {
+            if (stage && stage.assignmentKey) assignByKey(stage.assignmentKey);
+        });
+    }
+
     return allMembers.filter(m => assigneeIds.has(m.id));
 }
 
@@ -925,6 +1040,8 @@ function loadTasksView() {
             const activityId = card.dataset.activityId;
             const completionKey = card.dataset.completionKey;
             if (!completionKey) return;
+            const found = findActivityById(activityId);
+            if (!found || !canToggleTaskKey(found.activity, currentUser, completionKey)) return;
             const isDone = check.classList.contains('checked');
             await toggleKeyCompletion(activityId, completionKey, !isDone);
         });
@@ -943,23 +1060,60 @@ function setupActivityDetailModal() {
             if (e.target.id === 'activityDetailModal') closeActivityDetail();
         });
     }
+
+    const subtasksEl = document.getElementById('activityDetailSubtasks');
+    if (subtasksEl && subtasksEl.dataset.bound !== 'true') {
+        subtasksEl.dataset.bound = 'true';
+        subtasksEl.addEventListener('click', async (e) => {
+            const check = e.target.closest('.check-circle');
+            if (!check) return;
+
+            const row = check.closest('.subtask-row');
+            if (!row) return;
+
+            const activityId = activityDetailState.activityId;
+            const completionKey = row.dataset.completionKey;
+            if (!activityId || !completionKey) return;
+
+            const found = findActivityById(activityId);
+            if (!found || !canToggleTaskKey(found.activity, currentUser, completionKey)) return;
+
+            const isDone = check.classList.contains('checked');
+            await toggleKeyCompletion(activityId, completionKey, !isDone);
+        });
+    }
 }
 
 function closeActivityDetail() {
     document.getElementById('activityDetailModal').classList.remove('active');
+    activityDetailState.activityId = null;
 }
 
-function openActivityDetail(activityId) {
-    // Find the activity across all days
-    let activity = null;
+function findActivityById(activityId) {
     for (const day of SCHEDULE_DAYS) {
         const data = allScheduleData[day];
         if (data && data.events) {
-            activity = data.events.find(e => e.id === activityId);
-            if (activity) break;
+            const activity = data.events.find(e => e.id === activityId);
+            if (activity) return { activity, day };
         }
     }
-    if (!activity) return;
+    return null;
+}
+
+function isActivityWindowClosed(activity, day) {
+    const nowBrasil = new Date(new Date().toLocaleString('en-US', { timeZone: BRASIL_TIMEZONE }));
+    const end = parseTimeToDate(activity.end, day);
+    return nowBrasil.getTime() >= end.getTime();
+}
+
+function renderActivityDetail(activityId) {
+    const found = findActivityById(activityId);
+    if (!found) {
+        closeActivityDetail();
+        return;
+    }
+    const activity = found.activity;
+    const activityDay = found.day;
 
     document.getElementById('activityDetailTitle').textContent = `${activity.icon || '📋'} ${activity.title}`;
     document.getElementById('activityDetailTime').textContent = `${activity.start} – ${activity.end}`;
@@ -989,31 +1143,21 @@ function openActivityDetail(activityId) {
         subtasksEl.innerHTML = userTasks.map(t => {
             const completed = isKeyCompleted(activity, t.key);
             const badgeClass = getSourceBadgeClass(t.sourceType);
+            const isLocked = !!t.locked;
             return `
-                <div class="subtask-row ${completed ? 'done' : ''}" data-completion-key="${t.key}">
-                    ${makeCheckCircleHtml(completed, '')}
+                <div class="subtask-row ${completed ? 'done' : ''} ${isLocked ? 'locked' : ''}" data-completion-key="${t.key}">
+                    ${makeCheckCircleHtml(completed, isLocked ? 'locked' : '')}
                     <div class="subtask-row-info">
                         <span class="subtask-row-text">${t.role}</span>
                         <div class="subtask-row-meta">
                             <span class="source-badge ${badgeClass}">${getSourceDisplay(t.sourceType)}</span>
-                            <span class="subtask-row-status">${completed ? 'Completed' : 'Pending'}</span>
+                            <span class="subtask-row-status">${completed ? 'Completed' : (isLocked ? 'Locked' : 'Pending')}</span>
                         </div>
                     </div>
                 </div>
             `;
         }).join('');
         subtasksSection.style.display = 'block';
-        
-        // Click handlers for modal checkboxes
-        subtasksEl.querySelectorAll('.subtask-row .check-circle').forEach(check => {
-            check.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const row = check.closest('.subtask-row');
-                const key = row.dataset.completionKey;
-                const isDone = check.classList.contains('checked');
-                await toggleKeyCompletion(activity.id, key, !isDone);
-            });
-        });
     } else if (subtasksSection) {
         subtasksSection.style.display = 'none';
     }
@@ -1035,43 +1179,75 @@ function openActivityDetail(activityId) {
     // "Mark all done" button
     const toggleBtn = document.getElementById('activityDetailTaskToggleBtn');
     const allDone = userTasks.length > 0 && userTasks.every(t => isKeyCompleted(activity, t.key));
+    const toggleableTasks = userTasks.filter(t => canToggleTaskKey(activity, currentUser, t.key));
+    toggleBtn.style.display = 'inline-flex';
     
-    if (userTasks.length > 1) {
+    if (toggleableTasks.length > 1) {
         toggleBtn.textContent = allDone ? '✓ All tasks done' : 'Mark all my tasks done';
         toggleBtn.className = allDone ? 'btn btn-primary btn-small' : 'btn btn-outline btn-small';
-        toggleBtn.onclick = () => {
+        toggleBtn.disabled = false;
+        toggleBtn.onclick = async () => {
             const newState = !allDone;
-            userTasks.forEach(t => {
-                toggleKeyCompletion(activity.id, t.key, newState);
-            });
+            await Promise.all(toggleableTasks.map(t => toggleKeyCompletion(activity.id, t.key, newState)));
         };
-    } else if (userTasks.length === 1) {
-        const t = userTasks[0];
+    } else if (toggleableTasks.length === 1) {
+        const t = toggleableTasks[0];
         const completed = isKeyCompleted(activity, t.key);
         toggleBtn.textContent = completed ? '✓ Completed' : 'Mark as done';
         toggleBtn.className = completed ? 'btn btn-primary btn-small' : 'btn btn-outline btn-small';
+        toggleBtn.disabled = false;
         toggleBtn.onclick = () => toggleKeyCompletion(activity.id, t.key, !completed);
+    } else if (userTasks.length > 0) {
+        toggleBtn.textContent = 'Tasks are locked by sequence';
+        toggleBtn.className = 'btn btn-outline btn-small';
+        toggleBtn.disabled = true;
+        toggleBtn.onclick = null;
     } else {
         toggleBtn.style.display = 'none';
+        toggleBtn.onclick = null;
     }
 
     // Admin group complete button
     const groupBtn = document.getElementById('activityDetailGroupCompleteBtn');
-    if (currentUser.isAdmin && userTasks.length > 0) {
+    const canForceComplete = currentUser.isAdmin && assignees.length > 0 && isActivityWindowClosed(activity, activityDay);
+    if (canForceComplete) {
         groupBtn.style.display = 'inline-flex';
         groupBtn.textContent = '✓ Complete for all';
-        groupBtn.onclick = () => {
-            const assignees = getAssigneesForBlock(activity);
-            assignees.forEach(m => {
-                const memberTasks = getAllAssignmentsForMember(m, activity);
-                memberTasks.forEach(t => {
-                    toggleKeyCompletion(activity.id, t.key, true);
+        groupBtn.disabled = false;
+        groupBtn.onclick = async () => {
+            const fresh = findActivityById(activity.id);
+            if (!fresh) return;
+            const updates = [];
+            getAssigneesForBlock(fresh.activity).forEach(member => {
+                getAllAssignmentsForMember(member, fresh.activity).forEach(task => {
+                    updates.push(toggleKeyCompletion(fresh.activity.id, task.key, true));
                 });
             });
+            await Promise.all(updates);
         };
     } else {
         groupBtn.style.display = 'none';
+        groupBtn.disabled = true;
+        groupBtn.onclick = null;
     }
+
+    const groupHint = document.getElementById('activityDetailGroupHint');
+    if (groupHint) {
+        const showHint = currentUser.isAdmin && assignees.length > 0 && !isActivityWindowClosed(activity, activityDay);
+        groupHint.style.display = showHint ? 'block' : 'none';
+        if (showHint) {
+            groupHint.textContent = 'Admin bulk complete unlocks when this activity time window ends.';
+        }
+    }
+
+    if (activity.type === 'assembly') {
+        document.getElementById('activityDetailRole').textContent = mainRole || 'Sequential assembly activity';
+    }
+}
+
+function openActivityDetail(activityId) {
+    activityDetailState.activityId = activityId;
+    renderActivityDetail(activityId);
 
     document.getElementById('activityDetailModal').classList.add('active');
 }

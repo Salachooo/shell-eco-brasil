@@ -305,6 +305,17 @@ select {
   height: 12px;
 }
 
+.check-circle.locked {
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+.check-circle.locked:hover {
+  transform: none;
+  border-color: var(--border-color);
+  box-shadow: none;
+}
+
 /* Source badge */
 .source-badge {
   font-size: 9px;
@@ -322,6 +333,7 @@ select {
 .source-badge.group { background: rgba(63, 185, 80, 0.15); color: var(--accent-green); }
 .source-badge.personal { background: rgba(240, 136, 62, 0.15); color: var(--accent-primary); }
 .source-badge.subtask { background: rgba(57, 210, 192, 0.15); color: var(--accent-cyan); }
+.source-badge.assembly { background: rgba(57, 210, 192, 0.18); color: var(--accent-cyan); }
 
 /* =============================================
    SUB-TASK ROW (used in timeline & modal)
@@ -347,6 +359,21 @@ select {
 .subtask-row.done .subtask-row-text {
   text-decoration: line-through;
   color: var(--text-muted);
+}
+
+.subtask-row.locked {
+  opacity: 0.8;
+}
+
+.subtask-row.locked .check-circle {
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+.subtask-row.locked .check-circle:hover {
+  transform: none;
+  border-color: var(--border-color);
+  box-shadow: none;
 }
 
 .subtask-row-info {
@@ -1170,6 +1197,61 @@ select {
 .admin-subtask-item .subtask-desc {
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+.assembly-stage-item {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.assembly-stage-item.drag-over {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 2px rgba(57, 210, 192, 0.15);
+}
+
+.assembly-stage-item.dragging {
+  opacity: 0.65;
+}
+
+.assembly-stage-handle {
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: grab;
+  user-select: none;
+}
+
+.assembly-stage-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.assembly-stage-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.assembly-stage-meta {
+  margin-top: 2px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.assembly-stage-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* =============================================

@@ -7,6 +7,8 @@ let adminMembers = [];
 let adminClockInterval = null;
 const SCHEDULE_DAYS = ['2026-08-21','2026-08-22','2026-08-23','2026-08-24','2026-08-25','2026-08-26','2026-08-27'];
 let adminActivities = [];
+let currentAssignActivityId = null;
+let assemblyDraggedStageId = null;
 
 function getBrasilTodayISO() {
     return new Intl.DateTimeFormat('en-CA', {
@@ -107,6 +109,7 @@ function initAdmin() {
     setupActivitiesDaySelect();
     setupActivityForm();
     setupAssignPanel();
+    setupAssemblyStageForm();
     setupMemberForm();
     setupAssignDaySelect();
     setupAssignScopeSegmented();
@@ -213,6 +216,15 @@ function populateAssignPersonSelectors() {
             subtaskSelect.innerHTML += `<option value="${m.id}">${m.name || m.id} (${m.group.toUpperCase()})</option>`;
         });
     }
+
+    // Person selector in assembly stage editor
+    const assemblyPersonSelect = document.getElementById('assemblyStagePersonSelect');
+    if (assemblyPersonSelect) {
+        assemblyPersonSelect.innerHTML = '<option value="">No specific person</option>';
+        adminMembers.forEach(m => {
+            assemblyPersonSelect.innerHTML += `<option value="${m.id}">${m.name || m.id} (${m.group.toUpperCase()})</option>`;
+        });
+    }
 }
 
 async function toggleAdmin(id) {
@@ -276,6 +288,7 @@ function loadAdminActivities() {
             data.id = doc.id;
             if (!data.assignments || typeof data.assignments !== 'object') data.assignments = {};
             if (!data.personalSubtasks || typeof data.personalSubtasks !== 'object') data.personalSubtasks = {};
+            if (!Array.isArray(data.assemblyStages)) data.assemblyStages = [];
             adminActivities.push(data);
         });
         adminActivities.sort((a, b) => {
@@ -315,9 +328,19 @@ function setupActivityForm() {
         btn.classList.add('loading');
 
         try {
+            const iconByType = {
+                team_activity: '📋',
+                meeting: '🧠',
+                competition: '🏎️',
+                practice: '🔧',
+                assembly: '🔩',
+                meal: '🍽️',
+                free_time: '🕓'
+            };
+
             await db.collection('activities').add({
                 date, time, duration, title, description, type,
-                icon: '📋', assignments: {}, personalSubtasks: {}, completions: {}
+                icon: iconByType[type] || '📋', assignments: {}, personalSubtasks: {}, completions: {}, assemblyStages: []
             });
             document.getElementById('activityForm').reset();
             document.getElementById('activityDuration').value = 120;
@@ -415,9 +438,14 @@ function refreshAssignPanel() {
     });
 
     if (dayActivities.length > 0) {
-        select.value = dayActivities[0].id;
+        const preservedId = currentAssignActivityId && dayActivities.some(a => a.id === currentAssignActivityId)
+            ? currentAssignActivityId
+            : dayActivities[0].id;
+        select.value = preservedId;
+        currentAssignActivityId = preservedId;
         select.dispatchEvent(new Event('change'));
     } else {
+        currentAssignActivityId = null;
         document.getElementById('assignPanel').style.display = 'none';
     }
 }
@@ -426,13 +454,16 @@ function setupAssignPanel() {
     const select = document.getElementById('assignActivitySelect');
     select.addEventListener('change', () => {
         const activityId = select.value;
+        currentAssignActivityId = activityId || null;
         if (activityId) {
             document.getElementById('assignPanel').style.display = 'block';
             renderCurrentAssignments(activityId);
             populateSubtaskPersonSelect(activityId);
             renderSubtasksList(activityId);
+            syncAssemblyStageEditor(activityId);
         } else {
             document.getElementById('assignPanel').style.display = 'none';
+            syncAssemblyStageEditor(null);
         }
     });
 
@@ -626,6 +657,252 @@ async function removeSubtask(activityId, memberId, idx) {
     } catch (err) { alert('Error: ' + err.message); }
 }
 
+function isAssemblyActivity(activity) {
+    return !!activity && activity.type === 'assembly';
+}
+
+function getAssemblyStages(activity) {
+    if (!activity || !Array.isArray(activity.assemblyStages)) return [];
+    return [...activity.assemblyStages].sort((a, b) => (a.order || 0) - (b.order || 0));
+}
+
+function getAssignmentKeyLabel(key) {
+    if (key === 'all') return 'Everyone';
+    if (key === 'admins') return 'Admins';
+    if (key.startsWith('group_')) return 'Group ' + key.replace('group_', '').toUpperCase();
+    if (key.startsWith('person_')) return key.replace('person_', '');
+    return key;
+}
+
+function memberMatchesAssignmentKey(member, key) {
+    if (!member || !key) return false;
+    if (key === 'all') return true;
+    if (key === 'admins') return !!member.isAdmin;
+    if (key.startsWith('group_')) return member.group === key.replace('group_', '');
+    if (key.startsWith('person_')) return member.id === key.replace('person_', '');
+    return false;
+}
+
+function buildAssignmentCompletionKey(assignmentKey, memberId) {
+    return `assignment::${assignmentKey}::${memberId}`;
+}
+
+function isCompletionDone(completions, key) {
+    return !!(completions[key] && completions[key].completed);
+}
+
+function syncAssemblyStageEditor(activityId) {
+    const card = document.getElementById('assemblyStagesCard');
+    if (!card) return;
+
+    if (!activityId) {
+        card.style.display = 'none';
+        return;
+    }
+
+    const activity = adminActivities.find(a => a.id === activityId);
+    const show = isAssemblyActivity(activity);
+    card.style.display = show ? 'block' : 'none';
+
+    if (show) {
+        renderAssemblyStageDependsOnOptions(activityId);
+        renderAssemblyStagesList(activityId);
+    }
+}
+
+function setupAssemblyStageForm() {
+    const addBtn = document.getElementById('assemblyStageAddBtn');
+    if (!addBtn || addBtn.dataset.bound === 'true') return;
+    addBtn.dataset.bound = 'true';
+
+    addBtn.addEventListener('click', async () => {
+        const activityId = document.getElementById('assignActivitySelect').value;
+        const title = document.getElementById('assemblyStageTitle').value.trim();
+        const personId = document.getElementById('assemblyStagePersonSelect').value;
+        const scope = document.getElementById('assemblyStageScope').value;
+        const dependsOn = document.getElementById('assemblyStageDependsOn').value;
+
+        if (!activityId) { alert('Select an activity first.'); return; }
+        if (!title) { alert('Stage title is required.'); return; }
+
+        const activity = adminActivities.find(a => a.id === activityId);
+        if (!isAssemblyActivity(activity)) {
+            alert('Stage editor is only available for Assembly activities.');
+            return;
+        }
+
+        const stageId = 'stage_' + Date.now();
+        const assignmentKey = personId ? ('person_' + personId) : scope;
+
+        const stages = getAssemblyStages(activity);
+        const newStage = {
+            id: stageId,
+            title,
+            assignmentKey,
+            dependsOn: dependsOn ? [dependsOn] : [],
+            order: stages.length
+        };
+
+        try {
+            const updatedStages = [...stages, newStage];
+            await db.collection('activities').doc(activityId).update({ assemblyStages: updatedStages });
+            document.getElementById('assemblyStageTitle').value = '';
+            document.getElementById('assemblyStagePersonSelect').value = '';
+            document.getElementById('assemblyStageDependsOn').value = '';
+        } catch (err) {
+            alert('Error adding stage: ' + err.message);
+        }
+    });
+}
+
+function renderAssemblyStageDependsOnOptions(activityId) {
+    const dependsSelect = document.getElementById('assemblyStageDependsOn');
+    if (!dependsSelect) return;
+
+    const activity = adminActivities.find(a => a.id === activityId);
+    const stages = getAssemblyStages(activity);
+
+    dependsSelect.innerHTML = '<option value="">None (first available)</option>';
+    stages.forEach(stage => {
+        dependsSelect.innerHTML += `<option value="${stage.id}">${stage.title}</option>`;
+    });
+}
+
+function renderAssemblyStagesList(activityId) {
+    const container = document.getElementById('assemblyStagesList');
+    if (!container) return;
+
+    const activity = adminActivities.find(a => a.id === activityId);
+    const stages = getAssemblyStages(activity);
+
+    if (!isAssemblyActivity(activity)) {
+        container.innerHTML = '<p class="text-muted">Only Assembly activities support sequential stages.</p>';
+        return;
+    }
+
+    if (!stages.length) {
+        container.innerHTML = '<p class="text-muted">No stages yet. Add the first stage above.</p>';
+        return;
+    }
+
+    container.innerHTML = stages.map((stage, idx) => `
+        <div class="assembly-stage-item" draggable="true" data-stage-id="${stage.id}" data-activity-id="${activityId}">
+            <div class="assembly-stage-handle" title="Drag to reorder">☰</div>
+            <div class="assembly-stage-content">
+                <div class="assembly-stage-title">${idx + 1}. ${stage.title}</div>
+                <div class="assembly-stage-meta">
+                    <span>${getAssignmentKeyLabel(stage.assignmentKey)}</span>
+                    <span>${stage.dependsOn && stage.dependsOn.length ? ('Depends on: ' + stage.dependsOn.join(', ')) : 'No dependency'}</span>
+                </div>
+            </div>
+            <div class="assembly-stage-actions">
+                <button class="btn-icon-small" type="button" data-assembly-action="up" data-stage-id="${stage.id}" ${idx === 0 ? 'disabled' : ''}>↑</button>
+                <button class="btn-icon-small" type="button" data-assembly-action="down" data-stage-id="${stage.id}" ${idx === stages.length - 1 ? 'disabled' : ''}>↓</button>
+                <button class="btn-icon-small" type="button" data-assembly-action="remove" data-stage-id="${stage.id}">✖</button>
+            </div>
+        </div>
+    `).join('');
+
+    bindAssemblyStageListInteractions(container, activityId);
+}
+
+function bindAssemblyStageListInteractions(container, activityId) {
+    container.querySelectorAll('.assembly-stage-item').forEach(item => {
+        item.addEventListener('dragstart', () => {
+            assemblyDraggedStageId = item.dataset.stageId;
+            item.classList.add('dragging');
+        });
+
+        item.addEventListener('dragend', () => {
+            assemblyDraggedStageId = null;
+            item.classList.remove('dragging');
+            container.querySelectorAll('.assembly-stage-item').forEach(el => el.classList.remove('drag-over'));
+        });
+
+        item.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (item.dataset.stageId !== assemblyDraggedStageId) {
+                item.classList.add('drag-over');
+            }
+        });
+
+        item.addEventListener('dragleave', () => {
+            item.classList.remove('drag-over');
+        });
+
+        item.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            item.classList.remove('drag-over');
+            const targetStageId = item.dataset.stageId;
+            if (!assemblyDraggedStageId || assemblyDraggedStageId === targetStageId) return;
+            await reorderAssemblyStages(activityId, assemblyDraggedStageId, targetStageId);
+        });
+    });
+
+    container.querySelectorAll('[data-assembly-action]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const action = btn.dataset.assemblyAction;
+            const stageId = btn.dataset.stageId;
+            if (action === 'remove') {
+                await removeAssemblyStage(activityId, stageId);
+                return;
+            }
+            if (action === 'up') {
+                await moveAssemblyStageByOffset(activityId, stageId, -1);
+                return;
+            }
+            if (action === 'down') {
+                await moveAssemblyStageByOffset(activityId, stageId, 1);
+            }
+        });
+    });
+}
+
+async function moveAssemblyStageByOffset(activityId, stageId, offset) {
+    const activity = adminActivities.find(a => a.id === activityId);
+    const stages = getAssemblyStages(activity);
+    const index = stages.findIndex(stage => stage.id === stageId);
+    const targetIndex = index + offset;
+
+    if (index < 0 || targetIndex < 0 || targetIndex >= stages.length) return;
+
+    const moved = stages.splice(index, 1)[0];
+    stages.splice(targetIndex, 0, moved);
+
+    const normalized = stages.map((stage, order) => ({ ...stage, order }));
+    await db.collection('activities').doc(activityId).update({ assemblyStages: normalized });
+}
+
+async function reorderAssemblyStages(activityId, draggedStageId, targetStageId) {
+    const activity = adminActivities.find(a => a.id === activityId);
+    const stages = getAssemblyStages(activity);
+
+    const fromIndex = stages.findIndex(stage => stage.id === draggedStageId);
+    const toIndex = stages.findIndex(stage => stage.id === targetStageId);
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    const moved = stages.splice(fromIndex, 1)[0];
+    stages.splice(toIndex, 0, moved);
+
+    const normalized = stages.map((stage, order) => ({ ...stage, order }));
+    await db.collection('activities').doc(activityId).update({ assemblyStages: normalized });
+}
+
+async function removeAssemblyStage(activityId, stageId) {
+    const activity = adminActivities.find(a => a.id === activityId);
+    const stages = getAssemblyStages(activity);
+
+    const filtered = stages
+        .filter(stage => stage.id !== stageId)
+        .map((stage, order) => ({
+            ...stage,
+            order,
+            dependsOn: Array.isArray(stage.dependsOn) ? stage.dependsOn.filter(dep => dep !== stageId) : []
+        }));
+
+    await db.collection('activities').doc(activityId).update({ assemblyStages: filtered });
+}
+
 // =============================================
 // DASHBOARD
 // =============================================
@@ -662,6 +939,23 @@ function refreshDashboard() {
             const activityStart = parseActivityTime(activity.time, day);
             const activityEnd = new Date(activityStart.getTime() + (activity.duration || 120) * 60000);
             if (nowBrasil.getTime() >= activityStart.getTime() && nowBrasil.getTime() < activityEnd.getTime()) {
+                if (isAssemblyActivity(activity)) {
+                    const stages = getAssemblyStages(activity);
+                    const nextStage = stages.find(stage => {
+                        if (!memberMatchesAssignmentKey(member, stage.assignmentKey)) return false;
+                        const stageKey = 'assembly_stage_' + stage.id;
+                        const done = activity.completions && activity.completions[stageKey] && activity.completions[stageKey].completed;
+                        if (done) return false;
+                        const deps = Array.isArray(stage.dependsOn) ? stage.dependsOn : [];
+                        return deps.every(dep => activity.completions && activity.completions['assembly_stage_' + dep] && activity.completions['assembly_stage_' + dep].completed);
+                    });
+                    if (nextStage) {
+                        currentTask = nextStage.title;
+                        currentActivity = activity.title;
+                        break;
+                    }
+                }
+
                 const a = activity.assignments || {};
                 if (a['person_' + member.id]) { currentTask = a['person_' + member.id]; currentActivity = activity.title; break; }
                 if (a['group_' + member.group]) { currentTask = a['group_' + member.group]; currentActivity = activity.title; break; }
@@ -675,7 +969,15 @@ function refreshDashboard() {
             const comp = activity.completions || {};
             // Check all per-key completions for this member
             const completions = Object.keys(comp).filter(k => {
-                return k.startsWith('person_' + member.id) || 
+                if (k.startsWith('assembly_stage_')) {
+                    const stageId = k.replace('assembly_stage_', '');
+                    const stage = (activity.assemblyStages || []).find(s => s.id === stageId);
+                    return stage ? memberMatchesAssignmentKey(member, stage.assignmentKey) : false;
+                }
+                if (k.startsWith('assignment::')) {
+                    return k.endsWith('::' + member.id);
+                }
+                return k.startsWith('person_' + member.id) ||
                        k.startsWith('subtask_' + member.id) ||
                        k === 'all' ||
                        k === 'admins' ||
@@ -712,46 +1014,29 @@ function calculateDayCompletionStats(day) {
     let total = 0, completed = 0;
 
     dayActivities.forEach(activity => {
-        const a = activity.assignments || {};
+        const assignments = activity.assignments || {};
         const completions = activity.completions || {};
 
-        Object.keys(a).forEach(key => {
-            if (key === 'all') {
-                adminMembers.forEach(m => {
-                    total++;
-                    if (Object.keys(completions).some(k => 
-                        (k.startsWith('person_' + m.id) || k.startsWith('subtask_' + m.id)) &&
-                        completions[k] && completions[k].completed
-                    )) completed++;
-                });
-                return;
-            }
-            if (key === 'admins') {
-                adminMembers.filter(m => m.isAdmin).forEach(m => {
-                    total++;
-                    if (Object.keys(completions).some(k => 
-                        (k.startsWith('person_' + m.id) || k.startsWith('subtask_' + m.id)) &&
-                        completions[k] && completions[k].completed
-                    )) completed++;
-                });
-                return;
-            }
-            if (key.startsWith('group_')) {
-                const group = key.replace('group_', '');
-                adminMembers.filter(m => m.group === group).forEach(m => {
-                    total++;
-                    if (Object.keys(completions).some(k => 
-                        (k.startsWith('person_' + m.id) || k.startsWith('subtask_' + m.id)) &&
-                        completions[k] && completions[k].completed
-                    )) completed++;
-                });
-                return;
-            }
-            if (key.startsWith('person_')) {
+        Object.keys(assignments).forEach(assignmentKey => {
+            adminMembers.forEach(member => {
+                if (!memberMatchesAssignmentKey(member, assignmentKey)) return;
                 total++;
-                if (completions[key] && completions[key].completed) completed++;
-            }
+
+                const memberKey = buildAssignmentCompletionKey(assignmentKey, member.id);
+                const isDone = isCompletionDone(completions, memberKey) || isCompletionDone(completions, assignmentKey);
+                if (isDone) completed++;
+            });
         });
+
+        if (isAssemblyActivity(activity)) {
+            getAssemblyStages(activity).forEach(stage => {
+                adminMembers.forEach(member => {
+                    if (!memberMatchesAssignmentKey(member, stage.assignmentKey)) return;
+                    total++;
+                    if (isCompletionDone(completions, 'assembly_stage_' + stage.id)) completed++;
+                });
+            });
+        }
     });
 
     const percent = total ? Math.round((completed / total) * 100) : 0;

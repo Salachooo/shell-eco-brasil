@@ -135,6 +135,7 @@
                                     <option value="meeting">Meeting</option>
                                     <option value="competition">Competition</option>
                                     <option value="practice">Practice</option>
+                                    <option value="assembly">Assembly</option>
                                     <option value="meal">Meal</option>
                                     <option value="free_time">Free Time</option>
                                 </select>
@@ -248,6 +249,46 @@
                         
                         <div id="subtasksList" style="margin-top:8px"></div>
                     </div>
+
+                    <div class="admin-card" id="assemblyStagesCard" style="display:none">
+                        <h3>Assembly Stages (Sequential)</h3>
+                        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Create stages, assign each one, and drag to define the order. Stages unlock in sequence for members.</p>
+
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                            <div class="input-group" style="margin:0">
+                                <label>Stage title</label>
+                                <input type="text" id="assemblyStageTitle" placeholder="e.g. Montaje chasis" style="font-size:13px">
+                            </div>
+                            <div class="input-group" style="margin:0">
+                                <label>Assign stage to</label>
+                                <select id="assemblyStageScope">
+                                    <option value="all">👥 Everyone</option>
+                                    <option value="group_alpha">🅰️ Group Alpha</option>
+                                    <option value="group_beta">🅱️ Group Beta</option>
+                                    <option value="group_gamma">🅶 Group Gamma</option>
+                                    <option value="group_delta">🅳 Group Delta</option>
+                                    <option value="admins">⭐ Admins</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="assign-form-row" style="margin-top:8px">
+                            <div class="input-group" style="flex:1;margin:0">
+                                <label>Or specific person</label>
+                                <select id="assemblyStagePersonSelect">
+                                    <option value="">No specific person</option>
+                                </select>
+                            </div>
+                            <div class="input-group" style="flex:1;margin:0">
+                                <label>Depends on (optional)</label>
+                                <select id="assemblyStageDependsOn">
+                                    <option value="">None (first available)</option>
+                                </select>
+                            </div>
+                            <button id="assemblyStageAddBtn" class="btn btn-outline btn-small" type="button" style="align-self:flex-end;white-space:nowrap">+ Add Stage</button>
+                        </div>
+
+                        <div id="assemblyStagesList" style="margin-top:10px"></div>
+                    </div>
                 </div>
             </div>
 
@@ -292,8 +333,8 @@
 
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-    <script src="firebase-config.js?v=7"></script>
-    <script src="seed-data.js?v=7"></script>
-    <script src="admin.js?v=7"></script>
+    <script src="firebase-config.js?v=8"></script>
+    <script src="seed-data.js?v=8"></script>
+    <script src="admin.js?v=8"></script>
 </body>
 </html>
