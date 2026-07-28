@@ -363,6 +363,10 @@ function setupDayNav() {
 function setupBottomNav() {
     document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
         btn.addEventListener('click', () => {
+            // Clear any pending render suppression on tab switch
+            __suppressRender = false;
+            if (__suppressRenderTimer) { clearTimeout(__suppressRenderTimer); __suppressRenderTimer = null; }
+
             document.querySelectorAll('.bottom-nav-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             const view = btn.dataset.view;
@@ -846,7 +850,7 @@ function renderTimeline(day, data) {
             if (!found || !canToggleTaskKey(found.activity, currentUser, key)) return;
             const isDone = check.classList.contains('checked');
             const newState = !isDone;
-            toggleCheckInstantly(key, newState);
+            toggleCheckInstantly(key, newState, activityId);
             toggleKeyCompletion(activityId, key, newState);
         });
     });
@@ -1269,7 +1273,7 @@ function loadTasksView() {
             if (!found || !canToggleTaskKey(found.activity, currentUser, completionKey)) return;
             const isDone = check.classList.contains('checked');
             const newState = !isDone;
-            toggleCheckInstantly(completionKey, newState);
+            toggleCheckInstantly(completionKey, newState, activityId);
             toggleKeyCompletion(activityId, completionKey, newState);
         });
     });
@@ -1298,7 +1302,7 @@ function bindTaskCardClickHandlers(list) {
             if (!found || !canToggleTaskKey(found.activity, currentUser, completionKey)) return;
             const isDone = check.classList.contains('checked');
             const newState = !isDone;
-            toggleCheckInstantly(completionKey, newState);
+            toggleCheckInstantly(completionKey, newState, activityId);
             toggleKeyCompletion(activityId, completionKey, newState);
         });
     });
@@ -1340,7 +1344,7 @@ function setupActivityDetailModal() {
 
             const isDone = check.classList.contains('checked');
             const newState = !isDone;
-            toggleCheckInstantly(completionKey, newState);
+            toggleCheckInstantly(completionKey, newState, activityId);
             toggleKeyCompletion(activityId, completionKey, newState);
         });
     }
@@ -1560,13 +1564,15 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
         await ref.update({ completions: completions });
 
         // After successful write, re-apply the visual state to ensure consistency
-        toggleCheckInstantly(completionKey, completed);
+        toggleCheckInstantly(completionKey, completed, activityId);
         // Update local caches for all views
         updateCompletionInLocalCache(activityId, completionKey, completed);
+        // Refresh group progress bars immediately
+        refreshGroupProgressInDOM(activityId);
     } catch (err) {
         console.error('Toggle failed:', err);
         // If write failed, revert the optimistic UI
-        toggleCheckInstantly(completionKey, !completed);
+        toggleCheckInstantly(completionKey, !completed, activityId);
     }
 }
 
@@ -1577,7 +1583,7 @@ function suppressRenderTemporarily() {
     __suppressRenderTimer = setTimeout(() => {
         __suppressRender = false;
         __suppressRenderTimer = null;
-    }, 800);
+    }, 300);
 }
 
 /** Update the local allScheduleData cache with the new completion state */
@@ -1603,28 +1609,71 @@ function updateCompletionInLocalCache(activityId, completionKey, completed) {
     }
 }
 
-/** Instant DOM-only toggle for snappy UX — only affects VISIBLE elements */
-function toggleCheckInstantly(completionKey, completed) {
-    document.querySelectorAll(`[data-completion-key="${completionKey}"]`).forEach(row => {
-        // Only toggle elements in visible containers — skip hidden views
+/** Instant DOM-only toggle — ONLY affects matching activity + key */
+function toggleCheckInstantly(completionKey, completed, activityId) {
+    const selector = activityId
+        ? `[data-completion-key="${completionKey}"][data-activity-id="${activityId}"]`
+        : `[data-completion-key="${completionKey}"]`;
+    document.querySelectorAll(selector).forEach(row => {
         if (!isElementVisible(row)) return;
         const check = row.querySelector('.check-circle');
         if (!check) return;
         check.classList.toggle('checked', completed);
         row.classList.toggle('done', completed);
+        // Update locked state for assembly stages
+        if (row.dataset.completionKey && row.dataset.completionKey.startsWith('assembly_stage_')) {
+            const stageId = row.dataset.completionKey.replace('assembly_stage_', '');
+            const actId = activityId || row.dataset.activityId;
+            const found = findActivityById(actId);
+            if (found) {
+                const locked = isAssemblyStageLockedForUser(found.activity, currentUser, stageId);
+                check.classList.toggle('locked', locked);
+            }
+        }
     });
 }
 
 /** Check if an element is inside a visible container */
 function isElementVisible(el) {
     if (!el || !el.offsetParent) return false;
-    // Check if inside a hidden view panel
     const panel = el.closest('.view-panel');
     if (panel && !panel.classList.contains('active')) return false;
-    // Check if inside a hidden modal
     const modal = el.closest('.modal-overlay');
     if (modal && !modal.classList.contains('active')) return false;
     return true;
+}
+
+/** Refresh group progress bars DOM-side after a toggle */
+function refreshGroupProgressInDOM(activityId) {
+    const items = document.querySelectorAll(`.timeline-item[data-activity-id="${activityId}"]`);
+    items.forEach(item => {
+        const bars = item.querySelectorAll('.timeline-group-progress');
+        bars.forEach(bar => {
+            const fill = bar.querySelector('.timeline-group-progress-fill');
+            const label = bar.querySelector('span:last-child');
+            if (!fill || !label) return;
+            const found = findActivityById(activityId);
+            if (!found) return;
+            const keyEl = bar.querySelector('span:first-child');
+            if (!keyEl) return;
+            const roleText = keyEl.textContent.replace(':', '').trim();
+            const a = found.activity.assignments || {};
+            let matchedKey = null;
+            Object.keys(a).forEach(k => {
+                if (a[k] === roleText && getKeyGroupProgress(found.activity, k)) {
+                    matchedKey = k;
+                }
+            });
+            if (matchedKey) {
+                const prog = getKeyGroupProgress(found.activity, matchedKey);
+                if (prog && prog.total > 1) {
+                    const pct = Math.round((prog.done / prog.total) * 100);
+                    fill.style.width = pct + '%';
+                    label.textContent = prog.done + '/' + prog.total;
+                }
+            }
+        });
+    });
 }
 
 /** Legacy: toggle task_person_<id> key (kept for backwards compat) */
@@ -1721,4 +1770,4 @@ if (localStorage.getItem('theme') === 'light') {
     document.body.classList.add('light-theme');
 }
 
-console.log('SEM Brasil 2026 - Redesign v5 loaded (per-key completions + mobile-optimized)');
+console.log('SEM Brasil 2026 - Redesign v6 loaded (activity-scoped checks + live progress + instant UI)');

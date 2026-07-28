@@ -301,10 +301,10 @@
                                 </select>
                             </div>
                             <div class="input-group" style="flex:1;margin:0">
-                                <label>Depends on (optional)</label>
-                                <select id="assemblyStageDependsOn">
-                                    <option value="">None (first available)</option>
-                                </select>
+                                <label>Depends on (click to select)</label>
+                                <div id="assemblyStageDependsChips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;min-height:26px">
+                                    <span style="font-size:11px;color:var(--text-muted)">No stages yet</span>
+                                </div>
                             </div>
                             <button id="assemblyStageAddBtn" class="btn btn-outline btn-small" type="button" style="align-self:flex-end;white-space:nowrap">+ Add Stage</button>
                         </div>

@@ -796,7 +796,7 @@ function syncAssemblyStageEditor(activityId) {
     card.style.display = show ? 'block' : 'none';
 
     if (show) {
-        renderAssemblyStageDependsOnOptions(activityId);
+        renderDependencyChips(activityId);
         renderAssemblyStagesList(activityId);
     }
 }
@@ -811,7 +811,7 @@ function setupAssemblyStageForm() {
         const title = document.getElementById('assemblyStageTitle').value.trim();
         const personId = document.getElementById('assemblyStagePersonSelect').value;
         const scope = document.getElementById('assemblyStageScope').value;
-        const dependsOn = document.getElementById('assemblyStageDependsOn').value;
+        const dependsOn = getSelectedDependencies();
 
         if (!activityId) { alert('Select an activity first.'); return; }
         if (!title) { alert('Stage title is required.'); return; }
@@ -848,7 +848,7 @@ function setupAssemblyStageForm() {
             id: stageId,
             title,
             assignmentKey,
-            dependsOn: dependsOn ? [dependsOn] : [],
+            dependsOn: Array.isArray(dependsOn) ? dependsOn : [],
             order: stages.length
         };
 
@@ -856,33 +856,34 @@ function setupAssemblyStageForm() {
             const updatedStages = [...stages, newStage];
             const updateData = { assemblyStages: updatedStages };
             if (multiAssigneesUpdate) {
-                // Merge with existing multiAssignees
                 const existingMulti = activity.multiAssignees || {};
                 updateData.multiAssignees = { ...existingMulti, ...multiAssigneesUpdate };
             }
             await db.collection('activities').doc(activityId).update(updateData);
             document.getElementById('assemblyStageTitle').value = '';
             document.getElementById('assemblyStagePersonSelect').value = '';
-            document.getElementById('assemblyStageDependsOn').value = '';
-            // Deselect multi chips
+            // Deselect multi chips and dep chips
             stageMultiChips.forEach(chip => chip.classList.remove('active'));
+            document.querySelectorAll('#assemblyStageDependsChips .dep-chip.active').forEach(c => c.classList.remove('active'));
         } catch (err) {
             alert('Error adding stage: ' + err.message);
         }
     });
 }
 
-function renderAssemblyStageDependsOnOptions(activityId) {
-    const dependsSelect = document.getElementById('assemblyStageDependsOn');
-    if (!dependsSelect) return;
-
+function renderDependencyChips(activityId) {
+    const container = document.getElementById('assemblyStageDependsChips');
+    if (!container) return;
     const activity = adminActivities.find(a => a.id === activityId);
     const stages = getAssemblyStages(activity);
+    container.innerHTML = stages.length === 0
+        ? '<span style="font-size:11px;color:var(--text-muted)">No stages yet — create stages first</span>'
+        : stages.map(s => `<span class="dep-chip" data-dep-id="${s.id}" onclick="this.classList.toggle('active')">${s.title}</span>`).join('');
+}
 
-    dependsSelect.innerHTML = '<option value="">None (first available)</option>';
-    stages.forEach(stage => {
-        dependsSelect.innerHTML += `<option value="${stage.id}">${stage.title}</option>`;
-    });
+function getSelectedDependencies() {
+    const chips = document.querySelectorAll('#assemblyStageDependsChips .dep-chip.active');
+    return Array.from(chips).map(c => c.dataset.depId);
 }
 
 function renderAssemblyStagesList(activityId) {
@@ -1531,18 +1532,39 @@ function editAssemblyStage(activityId, stageId) {
     if (newTitle === null) return;
 
     const newScope = prompt(
-        'Assign to (all | group_alpha | group_beta | group_gamma | group_delta | admins | person_<id> | multi_<id>):',
+        'Assignment key:\nall = Everyone\nadmins = Admins\ngroup_alpha/beta/gamma/delta = Group\nperson_<username> = Specific person\nmulti_<id> = Multi-person',
         stage.assignmentKey || 'all'
     );
     if (newScope === null) return;
 
-    const currentDeps = (stage.dependsOn && stage.dependsOn.length) ? stage.dependsOn[0] : '';
-    const newDep = prompt('Depends on stage ID (leave empty for none):', currentDeps || '');
-    if (newDep === null) return;
+    // Show available stages for dependency selection
+    const currentDepIds = stage.dependsOn || [];
+    const available = stages.filter(s => s.id !== stageId);
+    let depMsg = 'Available stages:\n';
+    available.forEach(s => {
+        depMsg += `${s.title} (${s.id})\n`;
+    });
+    const currentDepNames = currentDepIds.map(id => {
+        const s = stages.find(st => st.id === id);
+        return s ? s.title : id;
+    }).join(', ');
+    depMsg += '\nCurrent dependencies: ' + (currentDepNames || 'None');
+    depMsg += '\n\nEnter stage IDs to depend on, comma-separated, or leave empty:';
+
+    const newDepInput = prompt(depMsg, currentDepNames || '');
+    if (newDepInput === null) return;
+
+    const newDepIds = newDepInput
+        ? newDepInput.split(',').map(s => {
+            const trimmed = s.trim();
+            const match = stages.find(st => st.title.trim().toLowerCase() === trimmed.toLowerCase());
+            return match ? match.id : trimmed;
+        }).filter(Boolean)
+        : [];
 
     const updatedStages = stages.map(s => {
         if (s.id === stageId) {
-            return { ...s, title: newTitle, assignmentKey: newScope, dependsOn: newDep ? [newDep] : [] };
+            return { ...s, title: newTitle, assignmentKey: newScope, dependsOn: newDepIds };
         }
         return s;
     });
