@@ -996,7 +996,9 @@ function loadTasksView() {
         data.events.forEach(block => {
             const tasks = getAllAssignmentsForMember(currentUser, block);
             if (tasks.length === 0) return;
-            const sortedTasks = sortTasksByPriority(tasks, block);
+            // Propagate completed flag explicitly (not present in raw assignments)
+            const tasksWithStatus = tasks.map(t => ({ ...t, completed: isKeyCompleted(block, t.key) }));
+            const sortedTasks = sortTasksByPriority(tasksWithStatus, block);
             const anyCompleted = sortedTasks.some(t => isKeyCompleted(block, t.key));
             const allCompleted = sortedTasks.length > 0 && sortedTasks.every(t => isKeyCompleted(block, t.key));
             

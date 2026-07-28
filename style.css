@@ -243,7 +243,7 @@ select {
 
 .check-circle:active { transform: scale(0.95); }
 
-/* Checked state: green background with CSS-only checkmark */
+/* Checked state: green background with CSS-only checkmark (Unicode ✓) */
 .check-circle.checked {
   background: var(--accent-green);
   border-color: var(--accent-green);
@@ -251,14 +251,11 @@ select {
 }
 
 .check-circle.checked::after {
-  content: '';
-  display: block;
-  width: 5px;
-  height: 9px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-  margin-top: -2px;
+  content: '✓';
+  color: white;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .check-circle.checked:hover {
@@ -293,10 +290,7 @@ select {
 }
 
 .check-circle.small.checked::after {
-  width: 4px;
-  height: 7px;
-  border-width: 0 1.5px 1.5px 0;
-  margin-top: -1px;
+  font-size: 11px;
 }
 
 .check-circle.small.partial::before {
