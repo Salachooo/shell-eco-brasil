@@ -687,7 +687,7 @@ function renderTimeline(day, data) {
                 const badgeClass = getSourceBadgeClass(t.sourceType);
                 const isLocked = !!t.locked;
                 html += `<div class="timeline-subtask-row ${completed ? 'done' : ''}" data-completion-key="${t.key}" data-activity-id="${block.id}">
-                    ${makeCheckCircleHtml(completed, `small ${isLocked ? 'locked' : ''}`)}
+                    ${makeCheckCircleHtml(completed, `small ${isLocked ? 'locked' : ''}`).replace('class="check-circle', `class="check-circle" data-key="${t.key}"`) }
                     <span class="timeline-subtask-text">${t.role}</span>
                     <span class="source-badge ${badgeClass}">${getSourceDisplay(t.sourceType)}</span>
                 </div>`;
@@ -1398,6 +1398,21 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
         if (!doc.exists) return;
 
         const data = doc.data();
+        
+        // SECURITY: Only allow toggling if the current user is assigned to this task
+        const userTasks = getAllAssignmentsForMember(currentUser, {
+            id: activityId,
+            assignments: data.assignments || {},
+            personalSubtasks: data.personalSubtasks || {},
+            type: data.type,
+            assemblyStages: data.assemblyStages || []
+        });
+        const isAllowed = userTasks.some(t => t.key === completionKey);
+        if (!isAllowed) {
+            console.warn('User not assigned to this task, ignoring toggle');
+            return;
+        }
+
         const completions = data.completions || {};
         
         if (completed) {
@@ -1407,17 +1422,16 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
                 completedBy: currentUser.id
             };
         } else {
-            // Remove the completion entry entirely for clean uncheck
             delete completions[completionKey];
         }
         
         await ref.update({ completions: completions });
 
-        // Optimistically update local allScheduleData for instant refresh
+        // Optimistically update local allScheduleData
         for (const day of SCHEDULE_DAYS) {
-            const data = allScheduleData[day];
-            if (data && data.events) {
-                const block = data.events.find(e => e.id === activityId);
+            const dayData = allScheduleData[day];
+            if (dayData && dayData.events) {
+                const block = dayData.events.find(e => e.id === activityId);
                 if (block) {
                     block.completions = completions;
                     break;
@@ -1425,18 +1439,41 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
             }
         }
 
-        // Auto-refresh the active views
-        const tasksView = document.getElementById('tasksView');
-        if (tasksView && tasksView.classList.contains('active')) {
-            loadTasksView();
-        }
+        // DOM-ONLY UPDATE: Find the checkbox and toggle it + move row
+        const allCheckboxes = document.querySelectorAll(`.check-circle[data-key="${completionKey}"], .check-circle[data-activity="${activityId}"]`);
+        allCheckboxes.forEach(check => {
+            const row = check.closest('.timeline-subtask-row, .tasks-activity-task, .subtask-row, .task-card');
+            if (!row) return;
+            
+            // Toggle the check visually
+            check.classList.toggle('checked', completed);
+            row.classList.toggle('done', completed);
+            
+            // Move completed rows to the bottom of their container
+            const container = row.closest('.timeline-subtasks, .tasks-activity-body, .subtasks-list, .tasks-list');
+            if (container) {
+                if (completed) {
+                    container.appendChild(row);
+                } else {
+                    // Move back to top: find the right position based on priority
+                    const firstCompleted = container.querySelector('.done');
+                    if (firstCompleted) {
+                        container.insertBefore(row, firstCompleted);
+                    } else {
+                        container.prepend(row);
+                    }
+                }
+            }
+        });
+
+        // Also update modal if open (just the checkbox, no re-render)
         if (activityDetailState.activityId && document.getElementById('activityDetailModal').classList.contains('active')) {
-            renderActivityDetail(activityDetailState.activityId);
-        }
-        // Also refresh timeline if schedule view is visible
-        const appMain = document.getElementById('appMain');
-        if (appMain && appMain.style.display !== 'none' && currentDay) {
-            renderTimeline(currentDay, allScheduleData[currentDay]);
+            const modalCheck = document.querySelector(`#activityDetailSubtasks .check-circle[data-key="${completionKey}"]`);
+            if (modalCheck) {
+                const modalRow = modalCheck.closest('.subtask-row');
+                modalCheck.classList.toggle('checked', completed);
+                if (modalRow) modalRow.classList.toggle('done', completed);
+            }
         }
     } catch (err) {
         alert('Could not update: ' + err.message);

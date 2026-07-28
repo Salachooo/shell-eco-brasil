@@ -228,7 +228,7 @@ select {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
   position: relative;
   background: transparent;
@@ -248,7 +248,7 @@ select {
 .check-circle.checked {
   background: var(--accent-green);
   border-color: var(--accent-green);
-  animation: checkPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: checkPop 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .check-circle.checked:hover {
