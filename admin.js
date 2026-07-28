@@ -131,6 +131,7 @@ function setupAdminTabs() {
             if (tab.dataset.tab === 'dashboard') refreshDashboard();
             if (tab.dataset.tab === 'activities') refreshActivitiesList();
             if (tab.dataset.tab === 'assign') refreshAssignPanel();
+            if (tab.dataset.tab === 'stats') refreshStats();
             if (tab.dataset.tab === 'people') refreshMembersList();
         });
     });
@@ -1284,6 +1285,120 @@ function cloneActivity(activityId) {
             alert('✓ Activity cloned to ' + targetDate + ' at ' + targetTime);
         })
         .catch(err => alert('Error: ' + err.message));
+}
+
+// =============================================
+// STATISTICS TAB
+// =============================================
+function refreshStats() {
+    const container = document.getElementById('statsContent');
+    if (!container) return;
+    if (!adminMembers.length || !adminActivities.length) {
+        container.innerHTML = '<p class="text-muted">Waiting for data...</p>';
+        return;
+    }
+
+    const groupColors = { alpha: '#f85149', beta: '#58a6ff', gamma: '#3fb950', delta: '#d29922' };
+    const groupNames = { alpha: 'Alpha', beta: 'Beta', gamma: 'Gamma', delta: 'Delta' };
+
+    // Calculate per-group completion stats
+    const groupStats = { alpha: { total: 0, completed: 0 }, beta: { total: 0, completed: 0 }, gamma: { total: 0, completed: 0 }, delta: { total: 0, completed: 0 } };
+    adminActivities.forEach(activity => {
+        const assignments = activity.assignments || {};
+        const completions = activity.completions || {};
+        Object.keys(assignments).forEach(key => {
+            adminMembers.forEach(member => {
+                if (!memberMatchesAssignmentKey(member, key)) return;
+                groupStats[member.group].total++;
+                const mk = buildAssignmentCompletionKey(key, member.id);
+                if (isCompletionDone(completions, mk) || isCompletionDone(completions, key)) groupStats[member.group].completed++;
+            });
+        });
+    });
+
+    // Per-day stats
+    const dayStats = {};
+    adminActivities.forEach(activity => {
+        if (!dayStats[activity.date]) dayStats[activity.date] = { total: 0, completed: 0 };
+        const assignments = activity.assignments || {};
+        const completions = activity.completions || {};
+        Object.keys(assignments).forEach(key => {
+            adminMembers.forEach(member => {
+                if (!memberMatchesAssignmentKey(member, key)) return;
+                dayStats[activity.date].total++;
+                const mk = buildAssignmentCompletionKey(key, member.id);
+                if (isCompletionDone(completions, mk) || isCompletionDone(completions, key)) dayStats[activity.date].completed++;
+            });
+        });
+    });
+
+    // Top performers
+    const memberScores = adminMembers.map(m => {
+        let completed = 0, total = 0;
+        adminActivities.forEach(activity => {
+            const assignments = activity.assignments || {};
+            const completions = activity.completions || {};
+            Object.keys(assignments).forEach(key => {
+                if (!memberMatchesAssignmentKey(m, key)) return;
+                total++;
+                const mk = buildAssignmentCompletionKey(key, m.id);
+                if (isCompletionDone(completions, mk) || isCompletionDone(completions, key)) completed++;
+            });
+        });
+        return { name: m.name || m.id, group: m.group, total, completed, pct: total ? Math.round((completed/total)*100) : 0 };
+    }).sort((a,b) => b.pct - a.pct).slice(0, 5);
+
+    // Overall
+    let overallTotal = 0, overallCompleted = 0;
+    Object.values(groupStats).forEach(g => { overallTotal += g.total; overallCompleted += g.completed; });
+    const overallPct = overallTotal ? Math.round((overallCompleted / overallTotal) * 100) : 0;
+
+    // Build SVG horizontal bar chart
+    const barMaxWidth = 240;
+    const buildBar = (label, done, total, color) => {
+        const pct = total ? Math.round((done / total) * 100) : 0;
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px">
+            <span style="width:50px;text-align:right;flex-shrink:0;font-weight:600;color:${color}">${label}</span>
+            <div style="flex:1;height:18px;background:var(--bg-surface);border-radius:4px;overflow:hidden">
+                <div style="height:100%;width:${pct}%;background:${color};border-radius:4px;transition:width 0.5s ease"></div>
+            </div>
+            <span style="width:45px;flex-shrink:0;text-align:right;font-weight:600;font-size:11px;color:${color}">${pct}%</span>
+            <span style="font-size:10px;color:var(--text-muted);width:40px;flex-shrink:0">${done}/${total}</span>
+        </div>`;
+    };
+
+    container.innerHTML = `
+        <div class="admin-card">
+            <h3>Overall Completion</h3>
+            <div style="display:flex;gap:12px;align-items:center">
+                <div style="width:72px;height:72px;border-radius:50%;background:conic-gradient(var(--accent-green) ${overallPct}%, var(--bg-surface) ${overallPct}%);display:flex;align-items:center;justify-content:center">
+                    <div style="width:52px;height:52px;border-radius:50%;background:var(--bg-card);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:var(--accent-primary)">${overallPct}%</div>
+                </div>
+                <div>
+                    <div style="font-size:24px;font-weight:700">${overallCompleted}<span style="font-size:14px;color:var(--text-muted)"> / ${overallTotal}</span></div>
+                    <div style="font-size:11px;color:var(--text-secondary)">tasks completed</div>
+                </div>
+            </div>
+        </div>
+        <div class="admin-card">
+            <h3>By Group</h3>
+            ${buildBar(groupNames.alpha, groupStats.alpha.completed, groupStats.alpha.total, groupColors.alpha)}
+            ${buildBar(groupNames.beta, groupStats.beta.completed, groupStats.beta.total, groupColors.beta)}
+            ${buildBar(groupNames.gamma, groupStats.gamma.completed, groupStats.gamma.total, groupColors.gamma)}
+            ${buildBar(groupNames.delta, groupStats.delta.completed, groupStats.delta.total, groupColors.delta)}
+        </div>
+        <div class="admin-card">
+            <h3>By Day</h3>
+            ${SCHEDULE_DAYS.map(day => {
+                const s = dayStats[day] || { total: 0, completed: 0 };
+                return buildBar(day.substring(8), s.completed, s.total, 'var(--accent-primary)');
+            }).join('')}
+        </div>
+        <div class="admin-card">
+            <h3>Top 5</h3>
+            ${memberScores.map((m, i) => buildBar(`${i+1}. ${m.name}`, m.completed, m.total, groupColors[m.group])).join('')}
+        </div>
+    `;
 }
 
 console.log('SEM Brasil 2026 - Admin Panel v3 loaded (segmented control + array sub-tasks)');
