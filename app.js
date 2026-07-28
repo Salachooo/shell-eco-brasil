@@ -19,16 +19,10 @@ let currentTaskFilter = 'all';
 let activityDetailState = { activityId: null };
 
 // =============================================
-// SVG CHECKMARK BUILDER
+// CHECK CIRCLE BUILDER (CSS-only checkmark via ::after)
 // =============================================
-function checkSvg() {
-    return `<svg viewBox="0 0 14 14"><path d="M2 7.5L5.5 11L12 3"/></svg>`;
-}
-
 function makeCheckCircleHtml(checked, extraClass = '') {
-    return `<div class="check-circle ${checked ? 'checked' : ''} ${extraClass}" tabindex="0" role="checkbox" aria-checked="${checked}">
-        ${checkSvg()}
-    </div>`;
+    return `<div class="check-circle ${checked ? 'checked' : ''} ${extraClass}" tabindex="0" role="checkbox" aria-checked="${checked}"></div>`;
 }
 
 // =============================================
