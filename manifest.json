@@ -1,7 +1,7 @@
 {
-  "name": "SEM Brasil 2026 - Team Schedule",
-  "short_name": "SEM Team",
-  "description": "Shell Eco-marathon Brasil 2026 - Team schedule, task management and assembly workflow",
+  "name": "EIARACING",
+  "short_name": "EIARACING",
+  "description": "EIA Racing - Shell Eco-marathon Brasil 2026 Team Operations",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#0d1117",
@@ -24,6 +24,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "splash_pages": null

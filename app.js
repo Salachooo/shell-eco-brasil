@@ -739,12 +739,15 @@ function renderTimeline(day, data) {
     timeline.querySelectorAll('.timeline-subtask-row .check-circle').forEach(check => {
         check.addEventListener('click', async (e) => {
             e.stopPropagation();
-            const row = check.closest('.timeline-subtask-row');
+            const row = check.closest('[data-completion-key]');
+            if (!row) return;
             const activityId = row.dataset.activityId;
             const key = row.dataset.completionKey;
             const found = findActivityById(activityId);
             if (!found || !canToggleTaskKey(found.activity, currentUser, key)) return;
             const isDone = check.classList.contains('checked');
+            // Optimistic DOM update FIRST for instant feedback
+            applyCheckDOM(key, !isDone);
             await toggleKeyCompletion(activityId, key, !isDone);
         });
     });
@@ -1389,7 +1392,7 @@ function openActivityDetail(activityId) {
 }
 
 // =============================================
-// FIREBASE TOGGLE (per-key)
+// FIREBASE TOGGLE (per-key) — pure data sync, NO DOM manipulation
 // =============================================
 async function toggleKeyCompletion(activityId, completionKey, completed) {
     try {
@@ -1410,6 +1413,8 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
         const isAllowed = userTasks.some(t => t.key === completionKey);
         if (!isAllowed) {
             console.warn('User not assigned to this task, ignoring toggle');
+            // Revert the optimistic DOM update
+            revertCheckDOM(completionKey, !completed);
             return;
         }
 
@@ -1438,46 +1443,36 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
                 }
             }
         }
+    } catch (err) {
+        console.error('Toggle failed, reverting:', err);
+        revertCheckDOM(completionKey, !completed);
+    }
+}
 
-        // DOM-ONLY UPDATE: Find the checkbox and toggle it + move row
-        const allCheckboxes = document.querySelectorAll(`.check-circle[data-key="${completionKey}"], .check-circle[data-activity="${activityId}"]`);
-        allCheckboxes.forEach(check => {
-            const row = check.closest('.timeline-subtask-row, .tasks-activity-task, .subtask-row, .task-card');
-            if (!row) return;
-            
-            // Toggle the check visually
-            check.classList.toggle('checked', completed);
-            row.classList.toggle('done', completed);
-            
-            // Move completed rows to the bottom of their container
-            const container = row.closest('.timeline-subtasks, .tasks-activity-body, .subtasks-list, .tasks-list');
-            if (container) {
-                if (completed) {
-                    container.appendChild(row);
-                } else {
-                    // Move back to top: find the right position based on priority
-                    const firstCompleted = container.querySelector('.done');
-                    if (firstCompleted) {
-                        container.insertBefore(row, firstCompleted);
-                    } else {
-                        container.prepend(row);
-                    }
-                }
-            }
-        });
-
-        // Also update modal if open (just the checkbox, no re-render)
-        if (activityDetailState.activityId && document.getElementById('activityDetailModal').classList.contains('active')) {
-            const modalCheck = document.querySelector(`#activityDetailSubtasks .check-circle[data-key="${completionKey}"]`);
-            if (modalCheck) {
-                const modalRow = modalCheck.closest('.subtask-row');
-                modalCheck.classList.toggle('checked', completed);
-                if (modalRow) modalRow.classList.toggle('done', completed);
+/** Optimistic DOM update — purely visual, runs BEFORE Firestore call */
+function applyCheckDOM(completionKey, completed) {
+    document.querySelectorAll(`[data-completion-key="${completionKey}"]`).forEach(row => {
+        const check = row.querySelector('.check-circle');
+        if (!check) return;
+        check.classList.toggle('checked', completed);
+        row.classList.toggle('done', completed);
+        // Move completed rows to end of container
+        const container = row.parentElement;
+        if (container) {
+            if (completed) {
+                container.appendChild(row);
+            } else {
+                const firstDone = container.querySelector('.done');
+                if (firstDone) container.insertBefore(row, firstDone);
+                else container.prepend(row);
             }
         }
-    } catch (err) {
-        alert('Could not update: ' + err.message);
-    }
+    });
+}
+
+/** Revert optimistic DOM update on error */
+function revertCheckDOM(completionKey, wasCompleted) {
+    applyCheckDOM(completionKey, wasCompleted);
 }
 
 /** Legacy: toggle task_person_<id> key (kept for backwards compat) */
