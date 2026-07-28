@@ -746,14 +746,7 @@ function renderTimeline(day, data) {
             const found = findActivityById(activityId);
             if (!found || !canToggleTaskKey(found.activity, currentUser, key)) return;
             const isDone = check.classList.contains('checked');
-            // Optimistic DOM update FIRST for instant feedback
-            applyCheckDOM(key, !isDone);
             await toggleKeyCompletion(activityId, key, !isDone);
-            // Re-render tasks view if filters are active (pending/completed)
-            const tasksView = document.getElementById('tasksView');
-            if (tasksView && tasksView.classList.contains('active') && currentTaskFilter !== 'all') {
-                loadTasksView();
-            }
         });
     });
 }
@@ -1397,7 +1390,7 @@ function openActivityDetail(activityId) {
 }
 
 // =============================================
-// FIREBASE TOGGLE (per-key) — pure data sync, NO DOM manipulation
+// FIREBASE TOGGLE (per-key) — simple write + re-render
 // =============================================
 async function toggleKeyCompletion(activityId, completionKey, completed) {
     try {
@@ -1416,12 +1409,7 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
             assemblyStages: data.assemblyStages || []
         });
         const isAllowed = userTasks.some(t => t.key === completionKey);
-        if (!isAllowed) {
-            console.warn('User not assigned to this task, ignoring toggle');
-            // Revert the optimistic DOM update
-            revertCheckDOM(completionKey, !completed);
-            return;
-        }
+        if (!isAllowed) return;
 
         const completions = data.completions || {};
         
@@ -1437,7 +1425,7 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
         
         await ref.update({ completions: completions });
 
-        // Optimistically update local allScheduleData
+        // Update local allScheduleData
         for (const day of SCHEDULE_DAYS) {
             const dayData = allScheduleData[day];
             if (dayData && dayData.events) {
@@ -1448,36 +1436,30 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
                 }
             }
         }
+
+        // Re-render visible views after data is updated
+        reRenderActiveViews();
     } catch (err) {
-        console.error('Toggle failed, reverting:', err);
-        revertCheckDOM(completionKey, !completed);
+        console.error('Toggle failed:', err);
     }
 }
 
-/** Optimistic DOM update — purely visual, runs BEFORE Firestore call */
-function applyCheckDOM(completionKey, completed) {
-    document.querySelectorAll(`[data-completion-key="${completionKey}"]`).forEach(row => {
-        const check = row.querySelector('.check-circle');
-        if (!check) return;
-        check.classList.toggle('checked', completed);
-        row.classList.toggle('done', completed);
-        // Move completed rows to end of container
-        const container = row.parentElement;
-        if (container) {
-            if (completed) {
-                container.appendChild(row);
-            } else {
-                const firstDone = container.querySelector('.done');
-                if (firstDone) container.insertBefore(row, firstDone);
-                else container.prepend(row);
-            }
-        }
-    });
-}
-
-/** Revert optimistic DOM update on error */
-function revertCheckDOM(completionKey, wasCompleted) {
-    applyCheckDOM(completionKey, wasCompleted);
+/** Re-render currently visible views (timeline + tasks + modal) */
+function reRenderActiveViews() {
+    // Timeline
+    const appMain = document.getElementById('appMain');
+    if (appMain && appMain.style.display !== 'none' && currentDay) {
+        renderTimeline(currentDay, allScheduleData[currentDay]);
+    }
+    // My Tasks
+    const tasksView = document.getElementById('tasksView');
+    if (tasksView && tasksView.classList.contains('active')) {
+        loadTasksView();
+    }
+    // Modal detail
+    if (activityDetailState.activityId && document.getElementById('activityDetailModal').classList.contains('active')) {
+        renderActivityDetail(activityDetailState.activityId);
+    }
 }
 
 /** Legacy: toggle task_person_<id> key (kept for backwards compat) */
