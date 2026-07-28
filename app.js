@@ -749,6 +749,11 @@ function renderTimeline(day, data) {
             // Optimistic DOM update FIRST for instant feedback
             applyCheckDOM(key, !isDone);
             await toggleKeyCompletion(activityId, key, !isDone);
+            // Re-render tasks view if filters are active (pending/completed)
+            const tasksView = document.getElementById('tasksView');
+            if (tasksView && tasksView.classList.contains('active') && currentTaskFilter !== 'all') {
+                loadTasksView();
+            }
         });
     });
 }

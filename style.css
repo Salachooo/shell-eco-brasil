@@ -262,30 +262,31 @@ select {
   100% { transform: scale(1); }
 }
 
-.check-circle svg {
-  width: 14px;
-  height: 14px;
+/* CSS-only checkmark using ::after — works on ALL browsers including mobile */
+.check-circle::after {
+  content: '';
+  display: block;
+  width: 6px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
   opacity: 0;
   transition: opacity 0.1s ease;
+  margin-top: -2px;
+  margin-left: 1px;
 }
 
-.check-circle.checked svg {
+.check-circle.checked::after {
   opacity: 1;
 }
 
-.check-circle svg path {
-  fill: none;
-  stroke: white;
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 20;
-  stroke-dashoffset: 20;
-  transition: stroke-dashoffset 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.check-circle.checked svg path {
-  stroke-dashoffset: 0;
+.check-circle.small::after {
+  width: 5px;
+  height: 8px;
+  border-width: 0 1.5px 1.5px 0;
+  margin-top: -1px;
+  margin-left: 0;
 }
 
 .check-circle.partial {
