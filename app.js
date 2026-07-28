@@ -735,9 +735,9 @@ function renderTimeline(day, data) {
         });
     });
 
-    // Click handlers for inline checkboxes
+    // Click handlers for inline checkboxes (instant DOM toggle + background sync)
     timeline.querySelectorAll('.timeline-subtask-row .check-circle').forEach(check => {
-        check.addEventListener('click', async (e) => {
+        check.addEventListener('click', (e) => {
             e.stopPropagation();
             const row = check.closest('[data-completion-key]');
             if (!row) return;
@@ -746,7 +746,11 @@ function renderTimeline(day, data) {
             const found = findActivityById(activityId);
             if (!found || !canToggleTaskKey(found.activity, currentUser, key)) return;
             const isDone = check.classList.contains('checked');
-            await toggleKeyCompletion(activityId, key, !isDone);
+            const newState = !isDone;
+            // INSTANT visual feedback — no waiting
+            toggleCheckInstantly(key, newState);
+            // Firestore sync in background
+            toggleKeyCompletion(activityId, key, newState);
         });
     });
 }
@@ -1390,7 +1394,7 @@ function openActivityDetail(activityId) {
 }
 
 // =============================================
-// FIREBASE TOGGLE (per-key) — simple write + re-render
+// FIREBASE TOGGLE (per-key) — write-only, DOM updated optimistically
 // =============================================
 async function toggleKeyCompletion(activityId, completionKey, completed) {
     try {
@@ -1408,8 +1412,7 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
             type: data.type,
             assemblyStages: data.assemblyStages || []
         });
-        const isAllowed = userTasks.some(t => t.key === completionKey);
-        if (!isAllowed) return;
+        if (!userTasks.some(t => t.key === completionKey)) return;
 
         const completions = data.completions || {};
         
@@ -1424,42 +1427,20 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
         }
         
         await ref.update({ completions: completions });
-
-        // Update local allScheduleData
-        for (const day of SCHEDULE_DAYS) {
-            const dayData = allScheduleData[day];
-            if (dayData && dayData.events) {
-                const block = dayData.events.find(e => e.id === activityId);
-                if (block) {
-                    block.completions = completions;
-                    break;
-                }
-            }
-        }
-
-        // Re-render visible views after data is updated
-        reRenderActiveViews();
+        // The onSnapshot listener in loadDaySchedule handles re-rendering
     } catch (err) {
         console.error('Toggle failed:', err);
     }
 }
 
-/** Re-render currently visible views (timeline + tasks + modal) */
-function reRenderActiveViews() {
-    // Timeline
-    const appMain = document.getElementById('appMain');
-    if (appMain && appMain.style.display !== 'none' && currentDay) {
-        renderTimeline(currentDay, allScheduleData[currentDay]);
-    }
-    // My Tasks
-    const tasksView = document.getElementById('tasksView');
-    if (tasksView && tasksView.classList.contains('active')) {
-        loadTasksView();
-    }
-    // Modal detail
-    if (activityDetailState.activityId && document.getElementById('activityDetailModal').classList.contains('active')) {
-        renderActivityDetail(activityDetailState.activityId);
-    }
+/** Instant DOM-only toggle for snappy UX — runs BEFORE Firestore */
+function toggleCheckInstantly(completionKey, completed) {
+    document.querySelectorAll(`[data-completion-key="${completionKey}"]`).forEach(row => {
+        const check = row.querySelector('.check-circle');
+        if (!check) return;
+        check.classList.toggle('checked', completed);
+        row.classList.toggle('done', completed);
+    });
 }
 
 /** Legacy: toggle task_person_<id> key (kept for backwards compat) */
