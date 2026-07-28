@@ -93,9 +93,9 @@ function getSourceBadgeClass(sourceType) {
 /** Get display text for a source type */
 function getSourceDisplay(sourceType) {
     const map = {
-        'all': 'Everyone', 'admins': 'Admins', 'group': 'Group',
-        'personal': 'Personal', 'subtask': 'Sub-task', 'assembly': 'Assembly',
-        'multi': 'Multi'
+        'all': '🤝 Everyone', 'admins': '⭐ Admins', 'group': '👥 Group',
+        'personal': '👤 Personal', 'subtask': '📋 Sub-task', 'assembly': '🔧 Assembly',
+        'multi': '👥 Team task'
     };
     return map[sourceType] || sourceType;
 }
@@ -829,13 +829,15 @@ function renderTimeline(day, data) {
         });
     });
 
-    // Click handlers for inline checkboxes (instant DOM toggle + background sync)
+    // Click handlers for inline checkboxes (single click + global debounce)
     timeline.querySelectorAll('.timeline-subtask-row .check-circle').forEach(check => {
-        // Use both pointerdown and click for cross-platform reliability
-        // pointerdown fires immediately on mobile; click dedup'd if pointerdown already handled
-        const handleCheckToggle = (e) => {
+        check.addEventListener('click', (e) => {
             e.stopPropagation();
-            e.preventDefault();
+            // Global debounce: prevent rapid double-fire on mobile
+            if (window._checkToggleBusy) return;
+            window._checkToggleBusy = true;
+            setTimeout(() => { window._checkToggleBusy = false; }, 400);
+
             const row = check.closest('[data-completion-key]');
             if (!row) return;
             const activityId = row.dataset.activityId;
@@ -844,18 +846,8 @@ function renderTimeline(day, data) {
             if (!found || !canToggleTaskKey(found.activity, currentUser, key)) return;
             const isDone = check.classList.contains('checked');
             const newState = !isDone;
-            // INSTANT visual feedback — no waiting
             toggleCheckInstantly(key, newState);
-            // Firestore sync
             toggleKeyCompletion(activityId, key, newState);
-        };
-        check.addEventListener('pointerdown', (e) => {
-            e.target._pd = true;
-            handleCheckToggle(e);
-        });
-        check.addEventListener('click', (e) => {
-            if (e.target._pd) { e.target._pd = false; return; }
-            handleCheckToggle(e);
         });
     });
 }
@@ -1263,9 +1255,12 @@ function loadTasksView() {
 
     // Click on checkbox inside a task row
     list.querySelectorAll('.tasks-activity-task .check-circle').forEach(check => {
-        const handleTaskCheck = (e) => {
+        check.addEventListener('click', (e) => {
             e.stopPropagation();
-            e.preventDefault();
+            if (window._checkToggleBusy) return;
+            window._checkToggleBusy = true;
+            setTimeout(() => { window._checkToggleBusy = false; }, 400);
+
             const row = check.closest('.tasks-activity-task');
             const activityId = row.dataset.activityId;
             const completionKey = row.dataset.completionKey;
@@ -1276,14 +1271,6 @@ function loadTasksView() {
             const newState = !isDone;
             toggleCheckInstantly(completionKey, newState);
             toggleKeyCompletion(activityId, completionKey, newState);
-        };
-        check.addEventListener('pointerdown', (e) => {
-            e.target._pd = true;
-            handleTaskCheck(e);
-        });
-        check.addEventListener('click', (e) => {
-            if (e.target._pd) { e.target._pd = false; return; }
-            handleTaskCheck(e);
         });
     });
 }
@@ -1297,9 +1284,12 @@ function bindTaskCardClickHandlers(list) {
         });
     });
     list.querySelectorAll('.task-card .check-circle').forEach(check => {
-        const handleCardCheck = (e) => {
+        check.addEventListener('click', (e) => {
             e.stopPropagation();
-            e.preventDefault();
+            if (window._checkToggleBusy) return;
+            window._checkToggleBusy = true;
+            setTimeout(() => { window._checkToggleBusy = false; }, 400);
+
             const card = check.closest('.task-card');
             const activityId = card.dataset.activityId;
             const completionKey = card.dataset.completionKey;
@@ -1310,14 +1300,6 @@ function bindTaskCardClickHandlers(list) {
             const newState = !isDone;
             toggleCheckInstantly(completionKey, newState);
             toggleKeyCompletion(activityId, completionKey, newState);
-        };
-        check.addEventListener('pointerdown', (e) => {
-            e.target._pd = true;
-            handleCardCheck(e);
-        });
-        check.addEventListener('click', (e) => {
-            if (e.target._pd) { e.target._pd = false; return; }
-            handleCardCheck(e);
         });
     });
 }
@@ -1338,9 +1320,13 @@ function setupActivityDetailModal() {
     const subtasksEl = document.getElementById('activityDetailSubtasks');
     if (subtasksEl && subtasksEl.dataset.bound !== 'true') {
         subtasksEl.dataset.bound = 'true';
-        const handleModalCheck = (e) => {
+        subtasksEl.addEventListener('click', (e) => {
             const check = e.target.closest('.check-circle');
             if (!check) return;
+            e.stopPropagation();
+            if (window._checkToggleBusy) return;
+            window._checkToggleBusy = true;
+            setTimeout(() => { window._checkToggleBusy = false; }, 400);
 
             const row = check.closest('.subtask-row');
             if (!row) return;
@@ -1356,22 +1342,6 @@ function setupActivityDetailModal() {
             const newState = !isDone;
             toggleCheckInstantly(completionKey, newState);
             toggleKeyCompletion(activityId, completionKey, newState);
-        };
-        // Use pointerdown + click with dedup via event.type check
-        subtasksEl.addEventListener('pointerdown', (e) => {
-            if (e.target.closest('.check-circle')) {
-                e.target._pointerDownFired = true;
-                handleModalCheck(e);
-            }
-        });
-        subtasksEl.addEventListener('click', (e) => {
-            if (e.target.closest('.check-circle')) {
-                if (e.target._pointerDownFired) {
-                    e.target._pointerDownFired = false;
-                    return;
-                }
-                handleModalCheck(e);
-            }
         });
     }
 }
@@ -1607,7 +1577,7 @@ function suppressRenderTemporarily() {
     __suppressRenderTimer = setTimeout(() => {
         __suppressRender = false;
         __suppressRenderTimer = null;
-    }, 2000);
+    }, 800);
 }
 
 /** Update the local allScheduleData cache with the new completion state */
@@ -1633,14 +1603,28 @@ function updateCompletionInLocalCache(activityId, completionKey, completed) {
     }
 }
 
-/** Instant DOM-only toggle for snappy UX — runs BEFORE Firestore */
+/** Instant DOM-only toggle for snappy UX — only affects VISIBLE elements */
 function toggleCheckInstantly(completionKey, completed) {
     document.querySelectorAll(`[data-completion-key="${completionKey}"]`).forEach(row => {
+        // Only toggle elements in visible containers — skip hidden views
+        if (!isElementVisible(row)) return;
         const check = row.querySelector('.check-circle');
         if (!check) return;
         check.classList.toggle('checked', completed);
         row.classList.toggle('done', completed);
     });
+}
+
+/** Check if an element is inside a visible container */
+function isElementVisible(el) {
+    if (!el || !el.offsetParent) return false;
+    // Check if inside a hidden view panel
+    const panel = el.closest('.view-panel');
+    if (panel && !panel.classList.contains('active')) return false;
+    // Check if inside a hidden modal
+    const modal = el.closest('.modal-overlay');
+    if (modal && !modal.classList.contains('active')) return false;
+    return true;
 }
 
 /** Legacy: toggle task_person_<id> key (kept for backwards compat) */
@@ -1737,4 +1721,4 @@ if (localStorage.getItem('theme') === 'light') {
     document.body.classList.add('light-theme');
 }
 
-console.log('SEM Brasil 2026 - Redesign v4 loaded (per-key completions + animated checkboxes)');
+console.log('SEM Brasil 2026 - Redesign v5 loaded (per-key completions + mobile-optimized)');

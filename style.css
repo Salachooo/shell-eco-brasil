@@ -85,6 +85,11 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* PWA: smooth momentum scrolling everywhere */
+.screen, .app-main, .view-panel {
+  -webkit-overflow-scrolling: touch;
+}
+
 /* =============================================
    LOGIN SCREEN
    ============================================= */

@@ -915,6 +915,7 @@ function renderAssemblyStagesList(activityId) {
             <div class="assembly-stage-actions">
                 <button class="btn-icon-small" type="button" data-assembly-action="up" data-stage-id="${stage.id}" ${idx === 0 ? 'disabled' : ''}>↑</button>
                 <button class="btn-icon-small" type="button" data-assembly-action="down" data-stage-id="${stage.id}" ${idx === stages.length - 1 ? 'disabled' : ''}>↓</button>
+                <button class="btn-icon-small" type="button" onclick="editAssemblyStage('${activityId}','${stage.id}')" title="Edit stage">✏️</button>
                 <button class="btn-icon-small" type="button" data-assembly-action="remove" data-stage-id="${stage.id}">✖</button>
             </div>
         </div>
@@ -1512,6 +1513,43 @@ function refreshStats() {
             ${memberScores.map((m, i) => buildBar(`${i+1}. ${m.name}`, m.completed, m.total, groupColors[m.group])).join('')}
         </div>
     `;
+}
+
+// =============================================
+// EDIT ASSEMBLY STAGE
+// =============================================
+
+/** Open a prompt-based editor for an assembly stage */
+function editAssemblyStage(activityId, stageId) {
+    const activity = adminActivities.find(a => a.id === activityId);
+    if (!activity) return;
+    const stages = getAssemblyStages(activity);
+    const stage = stages.find(s => s.id === stageId);
+    if (!stage) return;
+
+    const newTitle = prompt('Stage title:', stage.title || '');
+    if (newTitle === null) return;
+
+    const newScope = prompt(
+        'Assign to (all | group_alpha | group_beta | group_gamma | group_delta | admins | person_<id> | multi_<id>):',
+        stage.assignmentKey || 'all'
+    );
+    if (newScope === null) return;
+
+    const currentDeps = (stage.dependsOn && stage.dependsOn.length) ? stage.dependsOn[0] : '';
+    const newDep = prompt('Depends on stage ID (leave empty for none):', currentDeps || '');
+    if (newDep === null) return;
+
+    const updatedStages = stages.map(s => {
+        if (s.id === stageId) {
+            return { ...s, title: newTitle, assignmentKey: newScope, dependsOn: newDep ? [newDep] : [] };
+        }
+        return s;
+    });
+
+    db.collection('activities').doc(activityId).update({ assemblyStages: updatedStages })
+        .then(() => alert('✓ Stage updated'))
+        .catch(err => alert('Error: ' + err.message));
 }
 
 console.log('SEM Brasil 2026 - Admin Panel v3 loaded (segmented control + array sub-tasks)');

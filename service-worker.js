@@ -3,7 +3,7 @@
 // Production-ready with force-update support
 // =============================================
 
-const CACHE_NAME = 'sem-brasil-v5';
+const CACHE_NAME = 'sem-brasil-v6';
 const NO_CACHE_PATHS = [];
 
 const PRECACHE_ASSETS = [
