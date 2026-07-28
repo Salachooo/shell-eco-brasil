@@ -378,7 +378,11 @@ function refreshActivitiesList() {
                     <div style="font-weight:600;font-size:14px">${activity.title}</div>
                     <div style="font-size:11px;color:var(--text-muted)">${assignCount} assignments · ${subtaskCount} sub-tasks</div>
                 </div>
-                <button class="btn-icon-small" onclick="deleteActivity('${activity.id}')" title="Delete">🗑️</button>
+                <div style="display:flex;gap:4px">
+                    <button class="btn-icon-small" onclick="editActivity('${activity.id}')" title="Edit date/time">✏️</button>
+                    <button class="btn-icon-small" onclick="cloneActivity('${activity.id}')" title="Clone activity">📋</button>
+                    <button class="btn-icon-small" onclick="deleteActivity('${activity.id}')" title="Delete">🗑️</button>
+                </div>
             </div>
         </div>`;
     });
@@ -1191,6 +1195,62 @@ function openAdminPersonDetail(member) {
     `;
 
     existing.classList.add('active');
+}
+
+// =============================================
+// EDIT ACTIVITY (reschedule date/time)
+// =============================================
+function editActivity(activityId) {
+    const activity = adminActivities.find(a => a.id === activityId);
+    if (!activity) return;
+
+    const newDate = prompt('New date (YYYY-MM-DD):', activity.date || '');
+    if (!newDate) return;
+    const newTime = prompt('New time (HH:MM):', activity.time || '');
+    if (!newTime) return;
+
+    db.collection('activities').doc(activityId).update({ date: newDate, time: newTime })
+        .then(() => {
+            alert('✓ Activity rescheduled to ' + newDate + ' at ' + newTime);
+        })
+        .catch(err => alert('Error: ' + err.message));
+}
+
+// =============================================
+// CLONE ACTIVITY (copy with all data)
+// =============================================
+function cloneActivity(activityId) {
+    const activity = adminActivities.find(a => a.id === activityId);
+    if (!activity) return;
+
+    const targetDate = prompt('Target date for clone (YYYY-MM-DD):', activity.date || '');
+    if (!targetDate) return;
+    const targetTime = prompt('Target time for clone (HH:MM):', activity.time || '');
+    if (!targetTime) return;
+
+    const copyAssignments = confirm('Copy assignments? (OK=Yes, Cancel=No)');
+    const copySubtasks = confirm('Copy sub-tasks? (OK=Yes, Cancel=No)');
+    const copyStages = confirm('Copy assembly stages? (OK=Yes, Cancel=No)');
+
+    const newDoc = {
+        date: targetDate,
+        time: targetTime,
+        duration: activity.duration || 120,
+        title: activity.title,
+        description: activity.description || '',
+        type: activity.type || 'team_activity',
+        icon: activity.icon || '📋',
+        assignments: copyAssignments ? (activity.assignments || {}) : {},
+        personalSubtasks: copySubtasks ? (activity.personalSubtasks || {}) : {},
+        completions: {}, // Always fresh completions
+        assemblyStages: copyStages ? (activity.assemblyStages || []) : []
+    };
+
+    db.collection('activities').add(newDoc)
+        .then(() => {
+            alert('✓ Activity cloned to ' + targetDate + ' at ' + targetTime);
+        })
+        .catch(err => alert('Error: ' + err.message));
 }
 
 console.log('SEM Brasil 2026 - Admin Panel v3 loaded (segmented control + array sub-tasks)');

@@ -1,9 +1,9 @@
 // =============================================
-// SEM Brasil 2026 - Service Worker v4
-// Production-ready with full PWA support
+// SEM Brasil 2026 - Service Worker v5
+// Production-ready with force-update support
 // =============================================
 
-const CACHE_NAME = 'sem-brasil-v4';
+const CACHE_NAME = 'sem-brasil-v5';
 const NO_CACHE_PATHS = [];
 
 const PRECACHE_ASSETS = [
@@ -46,20 +46,21 @@ self.addEventListener('activate', (event) => {
     );
 });
 
+// Listen for skip-waiting message from client (force update)
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+});
+
 self.addEventListener('fetch', (event) => {
-    // Only handle GET requests
     if (event.request.method !== 'GET') return;
     
     const url = new URL(event.request.url);
     
-    // Skip non-GET, non-local, and Firebase/Google API calls
     if (url.origin !== self.location.origin) return;
     if (url.pathname.includes('firebase') || url.pathname.includes('googleapis')) return;
-    
-    // Skip Firestore REST calls
     if (url.pathname.includes('firestore') || url.hostname.includes('firestore')) return;
-    
-    // Skip Firebase Auth / Identity Platform
     if (url.hostname.includes('identitytoolkit') || url.hostname.includes('securetoken')) return;
 
     // Network-first strategy for HTML navigation
@@ -88,7 +89,6 @@ self.addEventListener('fetch', (event) => {
                     }
                     return response;
                 }).catch(() => {
-                    // Return offline fallback for navigation requests
                     if (event.request.mode === 'navigate') {
                         return caches.match('./index.html');
                     }

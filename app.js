@@ -1413,6 +1413,18 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
         
         await ref.update({ completions: completions });
 
+        // Optimistically update local allScheduleData for instant refresh
+        for (const day of SCHEDULE_DAYS) {
+            const data = allScheduleData[day];
+            if (data && data.events) {
+                const block = data.events.find(e => e.id === activityId);
+                if (block) {
+                    block.completions = completions;
+                    break;
+                }
+            }
+        }
+
         // Auto-refresh the active views
         const tasksView = document.getElementById('tasksView');
         if (tasksView && tasksView.classList.contains('active')) {
@@ -1420,6 +1432,11 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
         }
         if (activityDetailState.activityId && document.getElementById('activityDetailModal').classList.contains('active')) {
             renderActivityDetail(activityDetailState.activityId);
+        }
+        // Also refresh timeline if schedule view is visible
+        const appMain = document.getElementById('appMain');
+        if (appMain && appMain.style.display !== 'none' && currentDay) {
+            renderTimeline(currentDay, allScheduleData[currentDay]);
         }
     } catch (err) {
         alert('Could not update: ' + err.message);
