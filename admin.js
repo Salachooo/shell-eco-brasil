@@ -999,6 +999,18 @@ function refreshDashboard() {
     });
     tbody.innerHTML = html;
 
+    // Add click handlers to dashboard rows (open person detail)
+    tbody.querySelectorAll('tr').forEach((row, index) => {
+        // Skip header/loading rows
+        const member = adminMembers[index];
+        if (row.cells.length >= 5 && member) {
+            row.style.cursor = 'pointer';
+            row.addEventListener('click', () => {
+                openAdminPersonDetail(member);
+            });
+        }
+    });
+
     if (summaryCards) {
         const stats = calculateDayCompletionStats(day);
         summaryCards.innerHTML = `
@@ -1041,6 +1053,144 @@ function calculateDayCompletionStats(day) {
 
     const percent = total ? Math.round((completed / total) * 100) : 0;
     return { total, completed, percent };
+}
+
+/**
+ * Open a modal to view a person's tasks (admin version).
+ * Uses the same person detail modal from app.js logic, adapted for admin.
+ */
+function openAdminPersonDetail(member) {
+    // Reuse the existing person detail modal from admin.html if it exists,
+    // otherwise create an overlay inline.
+    let existing = document.getElementById('adminPersonDetailModal');
+    if (!existing) {
+        existing = document.createElement('div');
+        existing.id = 'adminPersonDetailModal';
+        existing.className = 'modal-overlay';
+        existing.innerHTML = `<div class="modal-card" style="position:relative">
+            <button class="modal-close admin-person-detail-close" type="button">✕</button>
+            <div id="adminPersonDetailContent"></div>
+        </div>`;
+        document.body.appendChild(existing);
+        existing.addEventListener('click', (e) => {
+            if (e.target.id === 'adminPersonDetailModal') {
+                existing.classList.remove('active');
+            }
+        });
+        existing.querySelector('.admin-person-detail-close').addEventListener('click', () => {
+            existing.classList.remove('active');
+        });
+    }
+
+    const content = document.getElementById('adminPersonDetailContent');
+    if (!content) return;
+
+    const groupColors = { alpha: '#f85149', beta: '#58a6ff', gamma: '#3fb950', delta: '#d29922' };
+    const color = groupColors[member.group] || '#6e7681';
+    const initial = member.name ? member.name.charAt(0).toUpperCase() : '?';
+    const hasAccount = !!member.password;
+
+    // Count tasks across all days
+    let totalTasks = 0;
+    let completedTasks = 0;
+    const dayBreakdown = [];
+
+    SCHEDULE_DAYS.forEach(day => {
+        const dayActivities = adminActivities.filter(a => a.date === day);
+        if (!dayActivities.length) return;
+        const dayEntries = [];
+
+        dayActivities.forEach(activity => {
+            const completions = activity.completions || {};
+            const assignments = activity.assignments || {};
+
+            // Check assignments for this member
+            const memberTasks = [];
+            Object.keys(assignments).forEach(key => {
+                if (!memberMatchesAssignmentKey(member, key)) return;
+                const taskKey = buildAssignmentCompletionKey(key, member.id);
+                const isDone = isCompletionDone(completions, taskKey);
+                totalTasks++;
+                if (isDone) completedTasks++;
+                memberTasks.push({
+                    role: assignments[key],
+                    key: taskKey,
+                    completed: isDone,
+                    sourceType: key === 'all' ? 'all' : key === 'admins' ? 'admins' : key.startsWith('group_') ? 'group' : 'personal'
+                });
+            });
+
+            // Check subtasks
+            const subtasks = activity.personalSubtasks || {};
+            if (subtasks[member.id] && Array.isArray(subtasks[member.id])) {
+                subtasks[member.id].forEach((text, idx) => {
+                    const sk = `subtask_${member.id}_${idx}`;
+                    const isDone = isCompletionDone(completions, sk);
+                    totalTasks++;
+                    if (isDone) completedTasks++;
+                    memberTasks.push({ role: text, key: sk, completed: isDone, sourceType: 'subtask' });
+                });
+            }
+
+            // Check assembly stages
+            if (isAssemblyActivity(activity)) {
+                getAssemblyStages(activity).forEach(stage => {
+                    if (!memberMatchesAssignmentKey(member, stage.assignmentKey)) return;
+                    const sk = 'assembly_stage_' + stage.id;
+                    const isDone = isCompletionDone(completions, sk);
+                    totalTasks++;
+                    if (isDone) completedTasks++;
+                    memberTasks.push({ role: stage.title, key: sk, completed: isDone, sourceType: 'assembly' });
+                });
+            }
+
+            if (memberTasks.length > 0) {
+                dayEntries.push({ title: activity.title, time: activity.time, tasks: memberTasks, icon: activity.icon || '📋' });
+            }
+        });
+
+        if (dayEntries.length > 0) {
+            dayBreakdown.push({ day, entries: dayEntries });
+        }
+    });
+
+    const pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+    content.innerHTML = `
+        <div class="person-detail">
+            <div class="person-detail-header">
+                <div class="person-detail-avatar" style="background:${color}">${initial}</div>
+                <div>
+                    <div class="person-detail-name">${member.name || member.id} ${member.isAdmin ? '⭐' : ''}</div>
+                    <div class="person-detail-group">${member.group ? member.group.toUpperCase() : 'No group'} · ${hasAccount ? 'Registered' : 'Not registered'}</div>
+                </div>
+            </div>
+            <div class="person-detail-stats">
+                <div class="stat-item"><span class="stat-value">${totalTasks}</span><span class="stat-label">Tasks</span></div>
+                <div class="stat-item"><span class="stat-value">${completedTasks}</span><span class="stat-label">Done</span></div>
+                <div class="stat-item"><span class="stat-value">${pct}%</span><span class="stat-label">Complete</span></div>
+            </div>
+            <div class="progress-bar" style="margin:12px 0"><div class="progress-bar-fill" style="width:${pct}%;background:var(--accent-green)"></div></div>
+            <hr style="border:none;border-top:1px solid var(--border-color);margin:12px 0">
+            <h4 style="font-size:12px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Tasks by Day</h4>
+            ${dayBreakdown.map(d => `
+                <div class="weekly-day-block">
+                    <h4>${d.day.substring(8)} — ${d.entries.length} activities</h4>
+                    ${d.entries.map(e => `
+                        <div class="weekly-row">
+                            <strong>${e.time}</strong> — ${e.icon} ${e.title}
+                            ${e.tasks.map(t => `<div class="weekly-meta" style="display:flex;align-items:center;gap:6px;margin-top:2px">
+                                <span style="color:${t.completed ? 'var(--accent-green)' : 'var(--text-muted)'}">${t.completed ? '✓' : '○'}</span>
+                                <span>${t.role}</span>
+                            </div>`).join('')}
+                        </div>
+                    `).join('')}
+                </div>
+            `).join('')}
+        </div>
+    `;
+
+    existing.classList.add('active');
 }
 
 console.log('SEM Brasil 2026 - Admin Panel v3 loaded (segmented control + array sub-tasks)');

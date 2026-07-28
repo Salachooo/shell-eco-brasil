@@ -432,6 +432,20 @@ function getAllAssignmentsForMember(member, block) {
     return tasks;
 }
 
+/**
+ * Sort tasks by priority: completed LAST, then by sourceType priority.
+ * Priority order: all > admins > group > personal > subtask > assembly
+ */
+function sortTasksByPriority(tasks, block) {
+    const priority = { all: 0, admins: 1, group: 2, personal: 3, subtask: 4, assembly: 5 };
+    const tp = (t) => {
+        const p = priority[t.sourceType] !== undefined ? priority[t.sourceType] : 99;
+        const completed = block ? isKeyCompleted(block, t.key) : (t.completed || false);
+        return (completed ? 100 : 0) + p;
+    };
+    return [...tasks].sort((a, b) => tp(a) - tp(b));
+}
+
 function buildAssignmentCompletionKey(assignmentKey, memberId) {
     return `assignment::${assignmentKey}::${memberId}`;
 }
@@ -664,10 +678,11 @@ function renderTimeline(day, data) {
                 <div class="timeline-title">${block.title}</div>
                 ${block.description ? `<div class="timeline-desc">${block.description}</div>` : ''}`;
 
-        // User's tasks with inline checkboxes
-        if (userTasks.length > 0) {
+        // User's tasks with inline checkboxes (sorted by priority)
+        const sortedTasks = sortTasksByPriority(userTasks, block);
+        if (sortedTasks.length > 0) {
             html += `<div class="timeline-subtasks">`;
-            userTasks.forEach(t => {
+            sortedTasks.forEach(t => {
                 const completed = isKeyCompleted(block, t.key);
                 const badgeClass = getSourceBadgeClass(t.sourceType);
                 const isLocked = !!t.locked;
@@ -968,71 +983,191 @@ function getMemberCurrentTask(member, blocks) {
 }
 
 // =============================================
-// TASKS VIEW (with source badges + animated checkboxes)
+// TASKS VIEW (Redesigned: grouped by activity with nested sub-tasks)
 // =============================================
 function loadTasksView() {
     const list = document.getElementById('tasksList');
     const days = SCHEDULE_DAYS;
-    let allTasks = [];
-
+    
+    // Collect all activities that have tasks for the current user
+    const activityMap = {}; // keyed by activityId
     days.forEach(day => {
         const data = allScheduleData[day];
         if (!data || !data.events) return;
         data.events.forEach(block => {
             const tasks = getAllAssignmentsForMember(currentUser, block);
-            tasks.forEach(t => {
-                const completed = isKeyCompleted(block, t.key);
-                allTasks.push({
-                    day, block, role: t.role, source: t.source, sourceType: t.sourceType,
-                    key: t.key, completed, activityId: block.id
-                });
-            });
+            if (tasks.length === 0) return;
+            const sortedTasks = sortTasksByPriority(tasks, block);
+            const anyCompleted = sortedTasks.some(t => isKeyCompleted(block, t.key));
+            const allCompleted = sortedTasks.length > 0 && sortedTasks.every(t => isKeyCompleted(block, t.key));
+            
+            if (!activityMap[block.id]) {
+                activityMap[block.id] = {
+                    id: block.id,
+                    day,
+                    block,
+                    tasks: [],
+                    allCompleted,
+                    anyCompleted
+                };
+            }
+            activityMap[block.id].tasks = sortedTasks;
+            activityMap[block.id].allCompleted = allCompleted;
+            activityMap[block.id].anyCompleted = anyCompleted;
         });
     });
 
-    if (currentTaskFilter === 'pending') allTasks = allTasks.filter(t => !t.completed);
-    if (currentTaskFilter === 'completed') allTasks = allTasks.filter(t => t.completed);
+    let activities = Object.values(activityMap);
 
-    document.getElementById('tasksCount').textContent = allTasks.length + ' tasks';
+    // Apply filters based on currentTaskFilter
+    if (currentTaskFilter === 'pending') {
+        // Filter to show only activities with pending tasks, flatten to show each pending task individually
+        let pendingTasks = [];
+        Object.values(activityMap).forEach(a => {
+            a.tasks.forEach(t => {
+                if (!t.completed) {
+                    pendingTasks.push({
+                        day: a.day,
+                        block: a.block,
+                        role: t.role,
+                        source: t.source,
+                        sourceType: t.sourceType,
+                        key: t.key,
+                        completed: false,
+                        activityId: a.id,
+                        locked: !!t.locked
+                    });
+                }
+            });
+        });
 
-    if (!allTasks.length) {
+        document.getElementById('tasksCount').textContent = pendingTasks.length + ' tasks';
+
+        if (!pendingTasks.length) {
+            list.innerHTML = '<div class="tasks-loading">No pending tasks found.</div>';
+            return;
+        }
+
+        // Sort by priority
+        const sortedPending = sortTasksByPriority(pendingTasks, null);
+        let html = '';
+        sortedPending.forEach(task => {
+            const badgeClass = getSourceBadgeClass(task.sourceType);
+            const isLocked = !!task.locked;
+            html += `<div class="task-card" data-activity-id="${task.activityId}" data-completion-key="${task.key}">
+                <div class="task-card-header">
+                    <span class="task-card-day">${getShortDayName(task.day)} ${task.day.substring(8)}</span>
+                    <span class="task-card-time">${task.block.start}</span>
+                </div>
+                <div class="task-card-body">
+                    ${makeCheckCircleHtml(false, isLocked ? 'locked' : '')}
+                    <div class="task-card-content">
+                        <div class="task-card-title">${task.block.icon || '📋'} ${task.block.title}</div>
+                        <div class="task-card-role">${task.role}</div>
+                        <div class="task-card-bottom">
+                            <span class="source-badge ${badgeClass}">${getSourceDisplay(task.sourceType)}</span>
+                            ${isLocked ? '<span style="font-size:10px;color:var(--text-muted)">🔒 Locked</span>' : '<span style="font-size:11px;color:var(--text-muted)">Pending</span>'}
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        });
+        list.innerHTML = html;
+        bindTaskCardClickHandlers(list);
+        return;
+    }
+
+    if (currentTaskFilter === 'completed') {
+        // Show only activities with all tasks completed, grouped by activity
+        activities = activities.filter(a => a.allCompleted);
+        const totalCompleted = activities.reduce((sum, a) => sum + a.tasks.length, 0);
+        document.getElementById('tasksCount').textContent = totalCompleted + ' tasks';
+
+        if (!activities.length) {
+            list.innerHTML = '<div class="tasks-loading">No completed tasks found.</div>';
+            return;
+        }
+    } else {
+        // 'all' filter: show activities grouped with sorted tasks
+        document.getElementById('tasksCount').textContent = activities.reduce((sum, a) => sum + a.tasks.length, 0) + ' tasks';
+    }
+
+    if (!activities.length) {
         list.innerHTML = '<div class="tasks-loading">No tasks found.</div>';
         return;
     }
 
+    // Render grouped by activity (like schedule view, but vertically stacked)
     let html = '';
-    allTasks.forEach(task => {
-        const badgeClass = getSourceBadgeClass(task.sourceType);
+    activities.sort((a, b) => {
+        const da = `${a.day} ${a.block.start}`;
+        const db = `${b.day} ${b.block.start}`;
+        return da.localeCompare(db);
+    });
 
-        html += `<div class="task-card ${task.completed ? 'done' : ''}" data-activity-id="${task.activityId}" data-completion-key="${task.key}">
-            <div class="task-card-header">
-                <span class="task-card-day">${getShortDayName(task.day)} ${task.day.substring(8)}</span>
-                <span class="task-card-time">${task.block.start}</span>
+    activities.forEach(act => {
+        const allComplete = act.allCompleted;
+        const hasLocked = act.tasks.some(t => !!t.locked);
+        html += `<div class="tasks-activity-group ${allComplete ? 'completed' : ''}" data-activity-id="${act.id}">
+            <div class="tasks-activity-header" data-activity-id="${act.id}">
+                <span class="tasks-activity-time">${getShortDayName(act.day)} ${act.day.substring(8)} · ${act.block.start}</span>
+                <span class="tasks-activity-title">${act.block.icon || '📋'} ${act.block.title}</span>
+                <span class="tasks-activity-count">${act.tasks.length} tasks</span>
             </div>
-            <div class="task-card-body">
-                ${makeCheckCircleHtml(task.completed, '')}
-                <div class="task-card-content">
-                    <div class="task-card-title">${task.block.icon || '📋'} ${task.block.title}</div>
-                    <div class="task-card-role">${task.role}</div>
-                    <div class="task-card-bottom">
-                        <span class="source-badge ${badgeClass}">${getSourceDisplay(task.sourceType)}</span>
-                        <span style="font-size:11px;color:${task.completed ? 'var(--accent-green)' : 'var(--text-muted)'}">
-                            ${task.completed ? 'Completed' : 'Pending'}
-                        </span>
+            <div class="tasks-activity-body">`;
+
+        act.tasks.forEach(t => {
+            const completed = isKeyCompleted(act.block, t.key) || t.completed;
+            const badgeClass = getSourceBadgeClass(t.sourceType);
+            const isLocked = !!t.locked;
+            html += `<div class="tasks-activity-task ${completed ? 'done' : ''}" data-completion-key="${t.key}" data-activity-id="${act.id}">
+                ${makeCheckCircleHtml(completed, `small ${isLocked ? 'locked' : ''}`)}
+                <div class="tasks-activity-task-info">
+                    <span class="tasks-activity-task-text">${t.role}</span>
+                    <div class="tasks-activity-task-meta">
+                        <span class="source-badge ${badgeClass}">${getSourceDisplay(t.sourceType)}</span>
+                        <span class="tasks-activity-task-status">${completed ? '✓ Done' : (isLocked ? '🔒 Locked' : '○ Pending')}</span>
                     </div>
                 </div>
-            </div>
-        </div>`;
+            </div>`;
+        });
+
+        html += `</div></div>`;
     });
+
     list.innerHTML = html;
 
+    // Click on activity header → open modal
+    list.querySelectorAll('.tasks-activity-header').forEach(header => {
+        header.addEventListener('click', () => {
+            openActivityDetail(header.dataset.activityId);
+        });
+    });
+
+    // Click on checkbox inside a task row
+    list.querySelectorAll('.tasks-activity-task .check-circle').forEach(check => {
+        check.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const row = check.closest('.tasks-activity-task');
+            const activityId = row.dataset.activityId;
+            const completionKey = row.dataset.completionKey;
+            if (!completionKey || !activityId) return;
+            const found = findActivityById(activityId);
+            if (!found || !canToggleTaskKey(found.activity, currentUser, completionKey)) return;
+            const isDone = check.classList.contains('checked');
+            await toggleKeyCompletion(activityId, completionKey, !isDone);
+        });
+    });
+}
+
+/** Helper: bind click handlers to flat task cards (used by 'pending' filter) */
+function bindTaskCardClickHandlers(list) {
     list.querySelectorAll('.task-card').forEach(card => {
         card.addEventListener('click', (e) => {
             if (e.target.closest('.check-circle')) return;
             openActivityDetail(card.dataset.activityId);
         });
     });
-
     list.querySelectorAll('.task-card .check-circle').forEach(check => {
         check.addEventListener('click', async (e) => {
             e.stopPropagation();
@@ -1135,12 +1270,13 @@ function renderActivityDetail(activityId) {
         progressSection.style.display = 'none';
     }
 
-    // Show all sub-tasks with per-key toggles
+    // Show all sub-tasks with per-key toggles (sorted by priority)
+    const sortedUserTasks = sortTasksByPriority(userTasks, activity);
     const subtasksSection = document.getElementById('activityDetailSubtasksSection');
     const subtasksEl = document.getElementById('activityDetailSubtasks');
     
-    if (subtasksEl && userTasks.length > 0) {
-        subtasksEl.innerHTML = userTasks.map(t => {
+    if (subtasksEl && sortedUserTasks.length > 0) {
+        subtasksEl.innerHTML = sortedUserTasks.map(t => {
             const completed = isKeyCompleted(activity, t.key);
             const badgeClass = getSourceBadgeClass(t.sourceType);
             const isLocked = !!t.locked;
@@ -1276,6 +1412,15 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
         }
         
         await ref.update({ completions: completions });
+
+        // Auto-refresh the active views
+        const tasksView = document.getElementById('tasksView');
+        if (tasksView && tasksView.classList.contains('active')) {
+            loadTasksView();
+        }
+        if (activityDetailState.activityId && document.getElementById('activityDetailModal').classList.contains('active')) {
+            renderActivityDetail(activityDetailState.activityId);
+        }
     } catch (err) {
         alert('Could not update: ' + err.message);
     }
