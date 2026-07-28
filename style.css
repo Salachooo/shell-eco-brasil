@@ -304,6 +304,11 @@ select {
   cursor: not-allowed;
 }
 
+/* Mobile: eliminate 300ms tap delay and prevent zoom on double-tap */
+.check-circle {
+  touch-action: manipulation;
+}
+
 .check-circle.locked:hover {
   transform: none;
   border-color: var(--border-color);
@@ -328,6 +333,7 @@ select {
 .source-badge.personal { background: rgba(240, 136, 62, 0.15); color: var(--accent-primary); }
 .source-badge.subtask { background: rgba(57, 210, 192, 0.15); color: var(--accent-cyan); }
 .source-badge.assembly { background: rgba(57, 210, 192, 0.18); color: var(--accent-cyan); }
+.source-badge.multi { background: rgba(240, 136, 62, 0.18); color: var(--accent-primary); }
 
 /* =============================================
    SUB-TASK ROW (used in timeline & modal)

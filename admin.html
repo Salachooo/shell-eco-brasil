@@ -268,7 +268,7 @@
 
                     <div class="admin-card" id="assemblyStagesCard" style="display:none">
                         <h3>Assembly Stages (Sequential)</h3>
-                        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Create stages, assign each one, and drag to define the order. Stages unlock in sequence for members.</p>
+                        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Create stages, assign each one, and drag to define the order. Stages unlock in sequence for members. Anyone assigned can complete and unlock the next.</p>
 
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
                             <div class="input-group" style="margin:0">
@@ -285,6 +285,12 @@
                                     <option value="group_delta">🅳 Group Delta</option>
                                     <option value="admins">⭐ Admins</option>
                                 </select>
+                            </div>
+                        </div>
+                        <div style="margin-top:8px">
+                            <div class="input-group" style="margin:0">
+                                <label>Or specific people (multi-assign)</label>
+                                <div id="assemblyStageMultiPeople" class="people-selector-grid"></div>
                             </div>
                         </div>
                         <div class="assign-form-row" style="margin-top:8px">

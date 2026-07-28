@@ -241,6 +241,14 @@ function populateAssignPersonSelectors() {
             assemblyPersonSelect.innerHTML += `<option value="${m.id}">${m.name || m.id} (${m.group.toUpperCase()})</option>`;
         });
     }
+
+    // Multi-person chips for assembly stage
+    const assemblyMultiPeople = document.getElementById('assemblyStageMultiPeople');
+    if (assemblyMultiPeople) {
+        assemblyMultiPeople.innerHTML = adminMembers.map(m => `
+            <div class="person-chip" data-person-id="${m.id}" onclick="this.classList.toggle('active')">👤 ${m.name || m.id}</div>
+        `).join('');
+    }
 }
 
 async function toggleAdmin(id) {
@@ -304,6 +312,7 @@ function loadAdminActivities() {
             data.id = doc.id;
             if (!data.assignments || typeof data.assignments !== 'object') data.assignments = {};
             if (!data.personalSubtasks || typeof data.personalSubtasks !== 'object') data.personalSubtasks = {};
+            if (!data.multiAssignees || typeof data.multiAssignees !== 'object') data.multiAssignees = {};
             if (!Array.isArray(data.assemblyStages)) data.assemblyStages = [];
             adminActivities.push(data);
         });
@@ -356,7 +365,9 @@ function setupActivityForm() {
 
             await db.collection('activities').add({
                 date, time, duration, title, description, type,
-                icon: iconByType[type] || '📋', assignments: {}, personalSubtasks: {}, completions: {}, assemblyStages: []
+                icon: iconByType[type] || '📋',
+                assignments: {}, personalSubtasks: {}, multiAssignees: {},
+                completions: {}, assemblyStages: []
             });
             document.getElementById('activityForm').reset();
             document.getElementById('activityDuration').value = 120;
@@ -520,11 +531,21 @@ function setupAssignPanel() {
                 if (!doc.exists) return;
                 const data = doc.data();
                 if (!data.assignments) data.assignments = {};
-                selected.forEach(chip => {
-                    data.assignments['person_' + chip.dataset.personId] = role;
+                if (!data.multiAssignees) data.multiAssignees = {};
+                
+                // Create a SINGLE shared key for all selected people
+                const multiKey = 'multi_' + Date.now();
+                const selectedIds = Array.from(selected).map(chip => chip.dataset.personId);
+                data.assignments[multiKey] = role;
+                data.multiAssignees[multiKey] = selectedIds;
+                
+                await docRef.update({ 
+                    assignments: data.assignments,
+                    multiAssignees: data.multiAssignees
                 });
-                await docRef.update({ assignments: data.assignments });
                 document.getElementById('assignRoleInput').value = '';
+                // Deselect all chips after assignment
+                selected.forEach(chip => chip.classList.remove('active'));
                 renderCurrentAssignments(activityId);
                 return;
             } catch (err) { alert('Error: ' + err.message); return; }
@@ -595,7 +616,8 @@ function renderCurrentAssignments(activityId) {
         let target = key === 'all' ? '👥 Everyone' :
                      key === 'admins' ? '⭐ Admins' :
                      key.startsWith('group_') ? '🅰️ ' + key.replace('group_', '').toUpperCase() :
-                     key.startsWith('person_') ? '👤 ' + key.replace('person_', '') : key;
+                     key.startsWith('person_') ? '👤 ' + key.replace('person_', '') :
+                     key.startsWith('multi_') ? getMultiAssignTarget(key, activity) : key;
         html += `<div class="assign-item">
             <div class="assign-item-info">
                 <strong>${target}</strong>
@@ -607,16 +629,33 @@ function renderCurrentAssignments(activityId) {
     container.innerHTML = html;
 }
 
+function getMultiAssignTarget(key, activity) {
+    const multiMap = activity.multiAssignees || {};
+    const ids = multiMap[key] || [];
+    const names = ids.map(id => {
+        const m = adminMembers.find(mm => mm.id === id);
+        return m ? m.name || id : id;
+    });
+    return '👥 ' + names.join(', ');
+}
+
 async function removeAssignment(activityId, key) {
     try {
         const docRef = db.collection('activities').doc(activityId);
         const doc = await docRef.get();
         if (doc.exists) {
             const data = doc.data();
+            const updateData = {};
             if (data.assignments) {
                 delete data.assignments[key];
-                await docRef.update({ assignments: data.assignments });
+                updateData.assignments = data.assignments;
             }
+            // Also clean up multiAssignees if this is a multi key
+            if (key.startsWith('multi_') && data.multiAssignees && data.multiAssignees[key]) {
+                delete data.multiAssignees[key];
+                updateData.multiAssignees = data.multiAssignees;
+            }
+            await docRef.update(updateData);
         }
     } catch (err) { alert('Error: ' + err.message); }
 }
@@ -704,20 +743,34 @@ function getAssemblyStages(activity) {
     return [...activity.assemblyStages].sort((a, b) => (a.order || 0) - (b.order || 0));
 }
 
-function getAssignmentKeyLabel(key) {
+function getAssignmentKeyLabel(key, block) {
     if (key === 'all') return 'Everyone';
     if (key === 'admins') return 'Admins';
     if (key.startsWith('group_')) return 'Group ' + key.replace('group_', '').toUpperCase();
     if (key.startsWith('person_')) return key.replace('person_', '');
+    if (key.startsWith('multi_')) {
+        const multiMap = (block && block.multiAssignees) || {};
+        const ids = multiMap[key] || [];
+        const names = ids.map(id => {
+            const m = adminMembers.find(mm => mm.id === id);
+            return m ? (m.name || id) : id;
+        });
+        return 'Multi: ' + names.join(', ');
+    }
     return key;
 }
 
-function memberMatchesAssignmentKey(member, key) {
+function memberMatchesAssignmentKey(member, key, block) {
     if (!member || !key) return false;
     if (key === 'all') return true;
     if (key === 'admins') return !!member.isAdmin;
     if (key.startsWith('group_')) return member.group === key.replace('group_', '');
     if (key.startsWith('person_')) return member.id === key.replace('person_', '');
+    if (key.startsWith('multi_')) {
+        const multiMap = (block && block.multiAssignees) || {};
+        const ids = multiMap[key] || [];
+        return ids.includes(member.id);
+    }
     return false;
 }
 
@@ -769,9 +822,27 @@ function setupAssemblyStageForm() {
             return;
         }
 
-        const stageId = 'stage_' + Date.now();
-        const assignmentKey = personId ? ('person_' + personId) : scope;
+        // Check for multi-person selection
+        const stageMultiChips = document.querySelectorAll('#assemblyStageMultiPeople .person-chip.active');
+        const useMulti = stageMultiChips.length > 0;
 
+        let assignmentKey;
+        let multiAssigneesUpdate = null;
+
+        if (useMulti) {
+            // Create multi-assign key for this stage
+            const multiKey = 'multi_' + Date.now();
+            assignmentKey = multiKey;
+            const selectedIds = Array.from(stageMultiChips).map(chip => chip.dataset.personId);
+            multiAssigneesUpdate = {};
+            multiAssigneesUpdate[multiKey] = selectedIds;
+        } else if (personId) {
+            assignmentKey = 'person_' + personId;
+        } else {
+            assignmentKey = scope;
+        }
+
+        const stageId = 'stage_' + Date.now();
         const stages = getAssemblyStages(activity);
         const newStage = {
             id: stageId,
@@ -783,10 +854,18 @@ function setupAssemblyStageForm() {
 
         try {
             const updatedStages = [...stages, newStage];
-            await db.collection('activities').doc(activityId).update({ assemblyStages: updatedStages });
+            const updateData = { assemblyStages: updatedStages };
+            if (multiAssigneesUpdate) {
+                // Merge with existing multiAssignees
+                const existingMulti = activity.multiAssignees || {};
+                updateData.multiAssignees = { ...existingMulti, ...multiAssigneesUpdate };
+            }
+            await db.collection('activities').doc(activityId).update(updateData);
             document.getElementById('assemblyStageTitle').value = '';
             document.getElementById('assemblyStagePersonSelect').value = '';
             document.getElementById('assemblyStageDependsOn').value = '';
+            // Deselect multi chips
+            stageMultiChips.forEach(chip => chip.classList.remove('active'));
         } catch (err) {
             alert('Error adding stage: ' + err.message);
         }
@@ -829,7 +908,7 @@ function renderAssemblyStagesList(activityId) {
             <div class="assembly-stage-content">
                 <div class="assembly-stage-title">${idx + 1}. ${stage.title}</div>
                 <div class="assembly-stage-meta">
-                    <span>${getAssignmentKeyLabel(stage.assignmentKey)}</span>
+                    <span>${getAssignmentKeyLabel(stage.assignmentKey, activity)}</span>
                     <span>${stage.dependsOn && stage.dependsOn.length ? ('Depends on: ' + stage.dependsOn.join(', ')) : 'No dependency'}</span>
                 </div>
             </div>
@@ -980,7 +1059,7 @@ function refreshDashboard() {
                 if (isAssemblyActivity(activity)) {
                     const stages = getAssemblyStages(activity);
                     const nextStage = stages.find(stage => {
-                        if (!memberMatchesAssignmentKey(member, stage.assignmentKey)) return false;
+                        if (!memberMatchesAssignmentKey(member, stage.assignmentKey, activity)) return false;
                         const stageKey = 'assembly_stage_' + stage.id;
                         const done = activity.completions && activity.completions[stageKey] && activity.completions[stageKey].completed;
                         if (done) return false;
@@ -1010,7 +1089,7 @@ function refreshDashboard() {
                 if (k.startsWith('assembly_stage_')) {
                     const stageId = k.replace('assembly_stage_', '');
                     const stage = (activity.assemblyStages || []).find(s => s.id === stageId);
-                    return stage ? memberMatchesAssignmentKey(member, stage.assignmentKey) : false;
+                    return stage ? memberMatchesAssignmentKey(member, stage.assignmentKey, activity) : false;
                 }
                 if (k.startsWith('assignment::')) {
                     return k.endsWith('::' + member.id);
@@ -1069,8 +1148,14 @@ function calculateDayCompletionStats(day) {
 
         Object.keys(assignments).forEach(assignmentKey => {
             adminMembers.forEach(member => {
-                if (!memberMatchesAssignmentKey(member, assignmentKey)) return;
+                if (!memberMatchesAssignmentKey(member, assignmentKey, activity)) return;
                 total++;
+
+                // Multi-assign: use the shared key, count as 1 per person
+                if (assignmentKey.startsWith('multi_')) {
+                    if (isCompletionDone(completions, assignmentKey)) completed++;
+                    return;
+                }
 
                 const memberKey = buildAssignmentCompletionKey(assignmentKey, member.id);
                 const isDone = isCompletionDone(completions, memberKey) || isCompletionDone(completions, assignmentKey);
@@ -1081,7 +1166,7 @@ function calculateDayCompletionStats(day) {
         if (isAssemblyActivity(activity)) {
             getAssemblyStages(activity).forEach(stage => {
                 adminMembers.forEach(member => {
-                    if (!memberMatchesAssignmentKey(member, stage.assignmentKey)) return;
+                    if (!memberMatchesAssignmentKey(member, stage.assignmentKey, activity)) return;
                     total++;
                     if (isCompletionDone(completions, 'assembly_stage_' + stage.id)) completed++;
                 });
@@ -1145,16 +1230,28 @@ function openAdminPersonDetail(member) {
             // Check assignments for this member
             const memberTasks = [];
             Object.keys(assignments).forEach(key => {
-                if (!memberMatchesAssignmentKey(member, key)) return;
-                const taskKey = buildAssignmentCompletionKey(key, member.id);
-                const isDone = isCompletionDone(completions, taskKey);
+                if (!memberMatchesAssignmentKey(member, key, activity)) return;
+                
+                // Multi-assign: use shared key directly
+                const isMulti = key.startsWith('multi_');
+                const taskKey = isMulti ? key : buildAssignmentCompletionKey(key, member.id);
+                const isDone = isCompletionDone(completions, taskKey) || 
+                    (isMulti ? false : isCompletionDone(completions, key));
+                
                 totalTasks++;
                 if (isDone) completedTasks++;
+                
+                let sourceType = 'personal';
+                if (key === 'all') sourceType = 'all';
+                else if (key === 'admins') sourceType = 'admins';
+                else if (key.startsWith('group_')) sourceType = 'group';
+                else if (key.startsWith('multi_')) sourceType = 'multi';
+                
                 memberTasks.push({
                     role: assignments[key],
                     key: taskKey,
                     completed: isDone,
-                    sourceType: key === 'all' ? 'all' : key === 'admins' ? 'admins' : key.startsWith('group_') ? 'group' : 'personal'
+                    sourceType
                 });
             });
 
@@ -1173,7 +1270,7 @@ function openAdminPersonDetail(member) {
             // Check assembly stages
             if (isAssemblyActivity(activity)) {
                 getAssemblyStages(activity).forEach(stage => {
-                    if (!memberMatchesAssignmentKey(member, stage.assignmentKey)) return;
+                    if (!memberMatchesAssignmentKey(member, stage.assignmentKey, activity)) return;
                     const sk = 'assembly_stage_' + stage.id;
                     const isDone = isCompletionDone(completions, sk);
                     totalTasks++;
@@ -1276,6 +1373,7 @@ function cloneActivity(activityId) {
         icon: activity.icon || '📋',
         assignments: copyAssignments ? (activity.assignments || {}) : {},
         personalSubtasks: copySubtasks ? (activity.personalSubtasks || {}) : {},
+        multiAssignees: copyAssignments ? (activity.multiAssignees || {}) : {},
         completions: {}, // Always fresh completions
         assemblyStages: copyStages ? (activity.assemblyStages || []) : []
     };
@@ -1308,7 +1406,12 @@ function refreshStats() {
         const completions = activity.completions || {};
         Object.keys(assignments).forEach(key => {
             adminMembers.forEach(member => {
-                if (!memberMatchesAssignmentKey(member, key)) return;
+                if (!memberMatchesAssignmentKey(member, key, activity)) return;
+                if (key.startsWith('multi_')) {
+                    groupStats[member.group].total++;
+                    if (isCompletionDone(completions, key)) groupStats[member.group].completed++;
+                    return;
+                }
                 groupStats[member.group].total++;
                 const mk = buildAssignmentCompletionKey(key, member.id);
                 if (isCompletionDone(completions, mk) || isCompletionDone(completions, key)) groupStats[member.group].completed++;
@@ -1324,7 +1427,12 @@ function refreshStats() {
         const completions = activity.completions || {};
         Object.keys(assignments).forEach(key => {
             adminMembers.forEach(member => {
-                if (!memberMatchesAssignmentKey(member, key)) return;
+                if (!memberMatchesAssignmentKey(member, key, activity)) return;
+                if (key.startsWith('multi_')) {
+                    dayStats[activity.date].total++;
+                    if (isCompletionDone(completions, key)) dayStats[activity.date].completed++;
+                    return;
+                }
                 dayStats[activity.date].total++;
                 const mk = buildAssignmentCompletionKey(key, member.id);
                 if (isCompletionDone(completions, mk) || isCompletionDone(completions, key)) dayStats[activity.date].completed++;
@@ -1339,7 +1447,12 @@ function refreshStats() {
             const assignments = activity.assignments || {};
             const completions = activity.completions || {};
             Object.keys(assignments).forEach(key => {
-                if (!memberMatchesAssignmentKey(m, key)) return;
+                if (!memberMatchesAssignmentKey(m, key, activity)) return;
+                if (key.startsWith('multi_')) {
+                    total++;
+                    if (isCompletionDone(completions, key)) completed++;
+                    return;
+                }
                 total++;
                 const mk = buildAssignmentCompletionKey(key, m.id);
                 if (isCompletionDone(completions, mk) || isCompletionDone(completions, key)) completed++;

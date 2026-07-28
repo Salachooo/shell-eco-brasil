@@ -18,6 +18,11 @@ let currentTeamFilter = 'all';
 let currentTaskFilter = 'all';
 let activityDetailState = { activityId: null };
 
+// Flag to prevent snapshot re-render from overwriting optimistic UI during our own toggle
+let __suppressRender = false;
+// Timer to re-enable rendering after a toggle
+let __suppressRenderTimer = null;
+
 // =============================================
 // CHECK CIRCLE BUILDER (CSS-only checkmark via ::after)
 // =============================================
@@ -79,7 +84,8 @@ function getMemberInitial(name) {
 function getSourceBadgeClass(sourceType) {
     const map = {
         'all': 'all', 'admins': 'admins', 'group': 'group',
-        'personal': 'personal', 'subtask': 'subtask', 'assembly': 'assembly'
+        'personal': 'personal', 'subtask': 'subtask', 'assembly': 'assembly',
+        'multi': 'multi'
     };
     return map[sourceType] || '';
 }
@@ -88,7 +94,8 @@ function getSourceBadgeClass(sourceType) {
 function getSourceDisplay(sourceType) {
     const map = {
         'all': 'Everyone', 'admins': 'Admins', 'group': 'Group',
-        'personal': 'Personal', 'subtask': 'Sub-task', 'assembly': 'Assembly'
+        'personal': 'Personal', 'subtask': 'Sub-task', 'assembly': 'Assembly',
+        'multi': 'Multi'
     };
     return map[sourceType] || sourceType;
 }
@@ -221,6 +228,9 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
     document.getElementById('registerBtn').textContent = 'First time? Register';
     if (clockInterval) clearInterval(clockInterval);
     if (countdownInterval) clearInterval(countdownInterval);
+    // Clean up all Firestore listeners
+    scheduleUnsubscribes.forEach(u => u());
+    scheduleUnsubscribes = [];
 });
 
 // =============================================
@@ -236,7 +246,66 @@ function startApp() {
     setupActivityDetailModal();
     setupPersonDetailModal();
     setupFilters();
+    // Load ALL days so My Tasks works for the whole event
+    loadAllDaySchedules();
+    // Also load the current day timeline
     loadDaySchedule(currentDay);
+}
+
+function loadAllDaySchedules() {
+    // Set up listeners for ALL days so allScheduleData stays current
+    SCHEDULE_DAYS.forEach(day => {
+        const unsubscribe = db.collection('activities')
+            .where('date', '==', day)
+            .onSnapshot((snapshot) => {
+                const activities = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (!data || !data.time || !data.title) return;
+                    data.id = doc.id;
+                    activities.push(data);
+                });
+
+                activities.sort((a, b) => a.time.localeCompare(b.time));
+
+                const blocks = activities.map(a => ({
+                    id: a.id,
+                    start: a.time,
+                    end: addMinutesToTime(a.time, a.duration || 120),
+                    title: a.title,
+                    icon: a.icon || '📋',
+                    type: a.type || 'team',
+                    description: a.description || '',
+                    assignments: a.assignments || {},
+                    multiAssignees: a.multiAssignees || {},
+                    personalSubtasks: a.personalSubtasks || {},
+                    completions: a.completions || {},
+                    assemblyStages: Array.isArray(a.assemblyStages) ? a.assemblyStages : []
+                }));
+
+                allScheduleData[day] = { events: blocks };
+
+                // If this is the current day and NOT suppressed, re-render timeline
+                if (day === currentDay && !__suppressRender) {
+                    renderTimeline(day, allScheduleData[day]);
+                }
+                updateCurrentTask();
+                updateNextEvent();
+
+                // Auto-refresh Tasks view if visible
+                if (document.getElementById('tasksView').classList.contains('active')) {
+                    loadTasksView();
+                }
+
+                // Auto-refresh Team view if visible
+                if (document.getElementById('teamView').classList.contains('active')) {
+                    renderTeamGrid();
+                }
+            }, (err) => {
+                console.error('All-days listener error for', day, ':', err);
+            });
+        scheduleUnsubscribes.push(unsubscribe);
+    });
 }
 
 // =============================================
@@ -355,9 +424,26 @@ function setupFilters() {
  */
 function getAllAssignmentsForMember(member, block) {
     const a = block.assignments || {};
+    const multiMap = block.multiAssignees || {};
     const tasks = [];
 
     Object.keys(a).forEach(assignmentKey => {
+        // Multi-assign: shared key shared by multiple people
+        if (assignmentKey.startsWith('multi_')) {
+            const assigneeIds = multiMap[assignmentKey] || [];
+            if (assigneeIds.includes(member.id)) {
+                tasks.push({
+                    key: assignmentKey, // Shared key — same for all multi-assignees
+                    assignmentKey,
+                    role: a[assignmentKey],
+                    source: `Group (${assigneeIds.length})`,
+                    sourceType: 'multi',
+                    isMulti: true,
+                    multiMemberIds: assigneeIds
+                });
+            }
+            return;
+        }
         if (assignmentKey === 'all') {
             tasks.push({
                 key: buildAssignmentCompletionKey(assignmentKey, member.id),
@@ -410,7 +496,7 @@ function getAllAssignmentsForMember(member, block) {
     if (block.type === 'assembly' && Array.isArray(block.assemblyStages)) {
         const stages = getAssemblyStages(block);
         stages.forEach(stage => {
-            if (doesMemberMatchAssignmentKey(member, stage.assignmentKey)) {
+            if (doesMemberMatchAssignmentKey(member, stage.assignmentKey, block)) {
                 tasks.push({
                     key: `assembly_stage_${stage.id}`,
                     role: stage.title,
@@ -431,7 +517,7 @@ function getAllAssignmentsForMember(member, block) {
  * Priority order: all > admins > group > personal > subtask > assembly
  */
 function sortTasksByPriority(tasks, block) {
-    const priority = { all: 0, admins: 1, group: 2, personal: 3, subtask: 4, assembly: 5 };
+    const priority = { all: 0, admins: 1, group: 2, multi: 2.5, personal: 3, subtask: 4, assembly: 5 };
     const tp = (t) => {
         const p = priority[t.sourceType] !== undefined ? priority[t.sourceType] : 99;
         const completed = block ? isKeyCompleted(block, t.key) : (t.completed || false);
@@ -462,12 +548,17 @@ function getAssemblyStageById(block, stageId) {
     return block.assemblyStages.find(stage => stage.id === stageId) || null;
 }
 
-function doesMemberMatchAssignmentKey(member, assignmentKey) {
+function doesMemberMatchAssignmentKey(member, assignmentKey, block) {
     if (!assignmentKey || !member) return false;
     if (assignmentKey === 'all') return true;
     if (assignmentKey === 'admins') return !!member.isAdmin;
     if (assignmentKey.startsWith('group_')) return member.group === assignmentKey.replace('group_', '');
     if (assignmentKey.startsWith('person_')) return member.id === assignmentKey.replace('person_', '');
+    if (assignmentKey.startsWith('multi_')) {
+        const multiMap = (block && block.multiAssignees) || {};
+        const ids = multiMap[assignmentKey] || [];
+        return ids.includes(member.id);
+    }
     return false;
 }
 
@@ -511,6 +602,9 @@ function isKeyCompleted(block, key) {
     const completions = block.completions || {};
     if (completions[key] && completions[key].completed) return true;
 
+    // Multi-assign: shared key is checked above, no legacy fallback needed
+    if (key.startsWith('multi_')) return false;
+
     const legacyKeys = getLegacyCompletionKeysForTaskKey(key);
     return legacyKeys.some(legacyKey => completions[legacyKey] && completions[legacyKey].completed);
 }
@@ -525,6 +619,7 @@ function isPersonTaskCompleted(block, personId) {
 function getKeyGroupProgress(block, key) {
     const a = block.assignments || {};
     const completions = block.completions || {};
+    const multiMap = block.multiAssignees || {};
     const role = a[key];
     if (!role) return null;
 
@@ -534,6 +629,12 @@ function getKeyGroupProgress(block, key) {
     else if (key.startsWith('group_')) {
         const group = key.replace('group_', '');
         members = allMembers.filter(m => m.group === group);
+    } else if (key.startsWith('multi_')) {
+        // Multi-assign: all assigned members share one key — show as 0/1 or 1/1
+        const assigneeIds = multiMap[key] || [];
+        members = allMembers.filter(m => assigneeIds.includes(m.id));
+        const allDone = !!(completions[key] && completions[key].completed);
+        return { done: allDone ? members.length : 0, total: members.length, role };
     } else {
         return null; // personal assignments don't have group progress
     }
@@ -572,58 +673,57 @@ function loadDaySchedule(day) {
     const timeline = document.getElementById('timeline');
     timeline.innerHTML = '<div class="timeline-loading">Loading schedule...</div>';
 
-    scheduleUnsubscribes.forEach(u => u());
-    scheduleUnsubscribes = [];
+    currentDay = day;
 
-    const unsubscribe = db.collection('activities')
-        .where('date', '==', day)
-        .onSnapshot((snapshot) => {
-            const activities = [];
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                if (!data || !data.time || !data.title) return;
-                data.id = doc.id;
-                activities.push(data);
+    // Re-render timeline with whatever data we have in cache
+    // (the all-days listeners in loadAllDaySchedules keep allScheduleData up to date)
+    if (allScheduleData[day]) {
+        renderTimeline(day, allScheduleData[day]);
+    }
+    updateCurrentTask();
+    updateNextEvent();
+
+    // If no data yet, try to fetch it once to populate the cache
+    if (!allScheduleData[day]) {
+        db.collection('activities')
+            .where('date', '==', day)
+            .get()
+            .then((snapshot) => {
+                const activities = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (!data || !data.time || !data.title) return;
+                    data.id = doc.id;
+                    activities.push(data);
+                });
+                activities.sort((a, b) => a.time.localeCompare(b.time));
+                const blocks = activities.map(a => ({
+                    id: a.id, start: a.time,
+                    end: addMinutesToTime(a.time, a.duration || 120),
+                    title: a.title, icon: a.icon || '📋', type: a.type || 'team',
+                    description: a.description || '',
+                    assignments: a.assignments || {},
+                    multiAssignees: a.multiAssignees || {},
+                    personalSubtasks: a.personalSubtasks || {},
+                    completions: a.completions || {},
+                    assemblyStages: Array.isArray(a.assemblyStages) ? a.assemblyStages : []
+                }));
+                allScheduleData[day] = { events: blocks };
+                renderTimeline(day, allScheduleData[day]);
+            })
+            .catch((err) => {
+                console.error('Schedule error:', err);
+                if (err.code === 'permission-denied') {
+                    timeline.innerHTML = '<div class="timeline-loading">Permission denied in Firestore.</div>';
+                    return;
+                }
+                if (err.code === 'failed-precondition') {
+                    timeline.innerHTML = '<div class="timeline-loading">Firestore configuration incomplete.</div>';
+                    return;
+                }
+                timeline.innerHTML = '<div class="timeline-loading">Error loading schedule.</div>';
             });
-
-            activities.sort((a, b) => a.time.localeCompare(b.time));
-
-            const blocks = activities.map(a => ({
-                id: a.id,
-                start: a.time,
-                end: addMinutesToTime(a.time, a.duration || 120),
-                title: a.title,
-                icon: a.icon || '📋',
-                type: a.type || 'team',
-                description: a.description || '',
-                assignments: a.assignments || {},
-                personalSubtasks: a.personalSubtasks || {},
-                completions: a.completions || {},
-                assemblyStages: Array.isArray(a.assemblyStages) ? a.assemblyStages : []
-            }));
-
-            const data = { events: blocks };
-            allScheduleData[day] = data;
-            renderTimeline(day, data);
-            updateCurrentTask();
-            updateNextEvent();
-            if (activityDetailState.activityId && document.getElementById('activityDetailModal').classList.contains('active')) {
-                renderActivityDetail(activityDetailState.activityId);
-            }
-        }, (err) => {
-            console.error('Schedule error:', err);
-            if (err.code === 'permission-denied') {
-                timeline.innerHTML = '<div class="timeline-loading">Permission denied in Firestore.</div>';
-                return;
-            }
-            if (err.code === 'failed-precondition') {
-                timeline.innerHTML = '<div class="timeline-loading">Firestore configuration incomplete.</div>';
-                return;
-            }
-            timeline.innerHTML = '<div class="timeline-loading">Error loading schedule.</div>';
-        });
-
-    scheduleUnsubscribes.push(unsubscribe);
+    }
 }
 
 function addMinutesToTime(timeStr, minutes) {
@@ -731,8 +831,11 @@ function renderTimeline(day, data) {
 
     // Click handlers for inline checkboxes (instant DOM toggle + background sync)
     timeline.querySelectorAll('.timeline-subtask-row .check-circle').forEach(check => {
-        check.addEventListener('click', (e) => {
+        // Use both pointerdown and click for cross-platform reliability
+        // pointerdown fires immediately on mobile; click dedup'd if pointerdown already handled
+        const handleCheckToggle = (e) => {
             e.stopPropagation();
+            e.preventDefault();
             const row = check.closest('[data-completion-key]');
             if (!row) return;
             const activityId = row.dataset.activityId;
@@ -743,8 +846,16 @@ function renderTimeline(day, data) {
             const newState = !isDone;
             // INSTANT visual feedback — no waiting
             toggleCheckInstantly(key, newState);
-            // Firestore sync in background
+            // Firestore sync
             toggleKeyCompletion(activityId, key, newState);
+        };
+        check.addEventListener('pointerdown', (e) => {
+            e.target._pd = true;
+            handleCheckToggle(e);
+        });
+        check.addEventListener('click', (e) => {
+            if (e.target._pd) { e.target._pd = false; return; }
+            handleCheckToggle(e);
         });
     });
 }
@@ -771,6 +882,7 @@ function getTypeColor(type) {
 
 function getAssigneesForBlock(block) {
     const a = block.assignments || {};
+    const multiMap = block.multiAssignees || {};
     const assigneeIds = new Set();
     const assignByKey = (key) => {
         if (key === 'all') allMembers.forEach(m => assigneeIds.add(m.id));
@@ -779,6 +891,10 @@ function getAssigneesForBlock(block) {
             const group = key.replace('group_', '');
             allMembers.filter(m => m.group === group).forEach(m => assigneeIds.add(m.id));
         } else if (key.startsWith('person_')) assigneeIds.add(key.replace('person_', ''));
+        else if (key.startsWith('multi_')) {
+            const ids = multiMap[key] || [];
+            ids.forEach(id => assigneeIds.add(id));
+        }
     };
 
     Object.keys(a).forEach(assignByKey);
@@ -996,7 +1112,7 @@ function loadTasksView() {
         data.events.forEach(block => {
             const tasks = getAllAssignmentsForMember(currentUser, block);
             if (tasks.length === 0) return;
-            // Propagate completed flag explicitly (not present in raw assignments)
+            // Propagate completed flag explicitly from the block's completions
             const tasksWithStatus = tasks.map(t => ({ ...t, completed: isKeyCompleted(block, t.key) }));
             const sortedTasks = sortTasksByPriority(tasksWithStatus, block);
             const anyCompleted = sortedTasks.some(t => isKeyCompleted(block, t.key));
@@ -1147,8 +1263,9 @@ function loadTasksView() {
 
     // Click on checkbox inside a task row
     list.querySelectorAll('.tasks-activity-task .check-circle').forEach(check => {
-        check.addEventListener('click', async (e) => {
+        const handleTaskCheck = (e) => {
             e.stopPropagation();
+            e.preventDefault();
             const row = check.closest('.tasks-activity-task');
             const activityId = row.dataset.activityId;
             const completionKey = row.dataset.completionKey;
@@ -1156,7 +1273,17 @@ function loadTasksView() {
             const found = findActivityById(activityId);
             if (!found || !canToggleTaskKey(found.activity, currentUser, completionKey)) return;
             const isDone = check.classList.contains('checked');
-            await toggleKeyCompletion(activityId, completionKey, !isDone);
+            const newState = !isDone;
+            toggleCheckInstantly(completionKey, newState);
+            toggleKeyCompletion(activityId, completionKey, newState);
+        };
+        check.addEventListener('pointerdown', (e) => {
+            e.target._pd = true;
+            handleTaskCheck(e);
+        });
+        check.addEventListener('click', (e) => {
+            if (e.target._pd) { e.target._pd = false; return; }
+            handleTaskCheck(e);
         });
     });
 }
@@ -1170,8 +1297,9 @@ function bindTaskCardClickHandlers(list) {
         });
     });
     list.querySelectorAll('.task-card .check-circle').forEach(check => {
-        check.addEventListener('click', async (e) => {
+        const handleCardCheck = (e) => {
             e.stopPropagation();
+            e.preventDefault();
             const card = check.closest('.task-card');
             const activityId = card.dataset.activityId;
             const completionKey = card.dataset.completionKey;
@@ -1179,7 +1307,17 @@ function bindTaskCardClickHandlers(list) {
             const found = findActivityById(activityId);
             if (!found || !canToggleTaskKey(found.activity, currentUser, completionKey)) return;
             const isDone = check.classList.contains('checked');
-            await toggleKeyCompletion(activityId, completionKey, !isDone);
+            const newState = !isDone;
+            toggleCheckInstantly(completionKey, newState);
+            toggleKeyCompletion(activityId, completionKey, newState);
+        };
+        check.addEventListener('pointerdown', (e) => {
+            e.target._pd = true;
+            handleCardCheck(e);
+        });
+        check.addEventListener('click', (e) => {
+            if (e.target._pd) { e.target._pd = false; return; }
+            handleCardCheck(e);
         });
     });
 }
@@ -1200,7 +1338,7 @@ function setupActivityDetailModal() {
     const subtasksEl = document.getElementById('activityDetailSubtasks');
     if (subtasksEl && subtasksEl.dataset.bound !== 'true') {
         subtasksEl.dataset.bound = 'true';
-        subtasksEl.addEventListener('click', async (e) => {
+        const handleModalCheck = (e) => {
             const check = e.target.closest('.check-circle');
             if (!check) return;
 
@@ -1215,7 +1353,25 @@ function setupActivityDetailModal() {
             if (!found || !canToggleTaskKey(found.activity, currentUser, completionKey)) return;
 
             const isDone = check.classList.contains('checked');
-            await toggleKeyCompletion(activityId, completionKey, !isDone);
+            const newState = !isDone;
+            toggleCheckInstantly(completionKey, newState);
+            toggleKeyCompletion(activityId, completionKey, newState);
+        };
+        // Use pointerdown + click with dedup via event.type check
+        subtasksEl.addEventListener('pointerdown', (e) => {
+            if (e.target.closest('.check-circle')) {
+                e.target._pointerDownFired = true;
+                handleModalCheck(e);
+            }
+        });
+        subtasksEl.addEventListener('click', (e) => {
+            if (e.target.closest('.check-circle')) {
+                if (e.target._pointerDownFired) {
+                    e.target._pointerDownFired = false;
+                    return;
+                }
+                handleModalCheck(e);
+            }
         });
     }
 }
@@ -1390,9 +1546,12 @@ function openActivityDetail(activityId) {
 }
 
 // =============================================
-// FIREBASE TOGGLE (per-key) — write-only, DOM updated optimistically
+// FIREBASE TOGGLE (per-key) — DOM updated optimistically, snapshot suppressed during write
 // =============================================
 async function toggleKeyCompletion(activityId, completionKey, completed) {
+    // Suppress snapshot re-render to prevent overwriting optimistic UI
+    suppressRenderTemporarily();
+
     try {
         const ref = db.collection('activities').doc(activityId);
         const doc = await ref.get();
@@ -1401,14 +1560,20 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
         const data = doc.data();
         
         // SECURITY: Only allow toggling if the current user is assigned to this task
-        const userTasks = getAllAssignmentsForMember(currentUser, {
+        const blockForCheck = {
             id: activityId,
             assignments: data.assignments || {},
+            multiAssignees: data.multiAssignees || {},
             personalSubtasks: data.personalSubtasks || {},
             type: data.type,
             assemblyStages: data.assemblyStages || []
-        });
-        if (!userTasks.some(t => t.key === completionKey)) return;
+        };
+        const userTasks = getAllAssignmentsForMember(currentUser, blockForCheck);
+        const isAllowed = userTasks.some(t => t.key === completionKey) ||
+            // Multi-assign: the shared key (multi_xxx) should be accessible if any
+            // user in the multi-group toggles it
+            (completionKey.startsWith('multi_') && doesMemberMatchAssignmentKey(currentUser, completionKey, blockForCheck));
+        if (!isAllowed) return;
 
         const completions = data.completions || {};
         
@@ -1423,9 +1588,48 @@ async function toggleKeyCompletion(activityId, completionKey, completed) {
         }
         
         await ref.update({ completions: completions });
-        // The onSnapshot listener in loadDaySchedule handles re-rendering
+
+        // After successful write, re-apply the visual state to ensure consistency
+        toggleCheckInstantly(completionKey, completed);
+        // Update local caches for all views
+        updateCompletionInLocalCache(activityId, completionKey, completed);
     } catch (err) {
         console.error('Toggle failed:', err);
+        // If write failed, revert the optimistic UI
+        toggleCheckInstantly(completionKey, !completed);
+    }
+}
+
+/** Temporarily suppress snapshot-triggered re-renders during our own toggle */
+function suppressRenderTemporarily() {
+    __suppressRender = true;
+    if (__suppressRenderTimer) clearTimeout(__suppressRenderTimer);
+    __suppressRenderTimer = setTimeout(() => {
+        __suppressRender = false;
+        __suppressRenderTimer = null;
+    }, 2000);
+}
+
+/** Update the local allScheduleData cache with the new completion state */
+function updateCompletionInLocalCache(activityId, completionKey, completed) {
+    for (const day of SCHEDULE_DAYS) {
+        const data = allScheduleData[day];
+        if (!data || !data.events) continue;
+        for (const block of data.events) {
+            if (block.id === activityId) {
+                if (!block.completions) block.completions = {};
+                if (completed) {
+                    block.completions[completionKey] = {
+                        completed: true,
+                        completedAt: new Date().toISOString(),
+                        completedBy: currentUser ? currentUser.id : 'unknown'
+                    };
+                } else {
+                    delete block.completions[completionKey];
+                }
+                return;
+            }
+        }
     }
 }
 
