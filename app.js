@@ -374,6 +374,10 @@ function setupBottomNav() {
 
             if (view === 'schedule') {
                 document.getElementById('appMain').style.display = 'block';
+                // Re-render timeline from cached data to ensure fresh state
+                if (allScheduleData[currentDay]) {
+                    renderTimeline(currentDay, allScheduleData[currentDay]);
+                }
             } else {
                 document.getElementById('appMain').style.display = 'none';
                 const panelId = view + 'View';
@@ -1412,7 +1416,7 @@ function renderActivityDetail(activityId) {
             const badgeClass = getSourceBadgeClass(t.sourceType);
             const isLocked = !!t.locked;
             return `
-                <div class="subtask-row ${completed ? 'done' : ''} ${isLocked ? 'locked' : ''}" data-completion-key="${t.key}">
+                <div class="subtask-row ${completed ? 'done' : ''} ${isLocked ? 'locked' : ''}" data-completion-key="${t.key}" data-activity-id="${activity.id}">
                     ${makeCheckCircleHtml(completed, isLocked ? 'locked' : '')}
                     <div class="subtask-row-info">
                         <span class="subtask-row-text">${t.role}</span>
