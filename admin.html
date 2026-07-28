@@ -202,6 +202,7 @@
                             <button class="segmented-option active" data-scope="all">👥 Everyone</button>
                             <button class="segmented-option" data-scope="group">🅰️ Group</button>
                             <button class="segmented-option" data-scope="person">👤 Person</button>
+                            <button class="segmented-option" data-scope="multi">👥 Multi</button>
                         </div>
 
                         <!-- Dynamic fields based on scope -->
@@ -223,6 +224,14 @@
                                 <select id="assignPersonSelect">
                                     <option value="">Select person...</option>
                                 </select>
+                            </div>
+
+                            <!-- Multi-person selector (hidden by default, shown when multi selected) -->
+                            <div id="assignMultiField" class="input-group" style="margin-bottom:8px;display:none">
+                                <label>Select People</label>
+                                <div id="assignMultiPeople" class="people-selector-grid"></div>
+                                <button id="assignMultiSelectAll" type="button" class="btn btn-ghost btn-xs" style="margin-top:4px">Select All</button>
+                                <button id="assignMultiDeselectAll" type="button" class="btn btn-ghost btn-xs" style="margin-top:4px;margin-left:4px">Deselect All</button>
                             </div>
 
                             <div class="input-group" style="margin-bottom:8px">

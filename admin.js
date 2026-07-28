@@ -208,6 +208,21 @@ function populateAssignPersonSelectors() {
         });
     }
 
+    // Multi-person chips
+    const multiPeople = document.getElementById('assignMultiPeople');
+    if (multiPeople) {
+        multiPeople.innerHTML = adminMembers.map(m => `
+            <div class="person-chip" data-person-id="${m.id}" onclick="this.classList.toggle('active')">👤 ${m.name || m.id}</div>
+        `).join('');
+        
+        document.getElementById('assignMultiSelectAll').onclick = () => {
+            multiPeople.querySelectorAll('.person-chip').forEach(c => c.classList.add('active'));
+        };
+        document.getElementById('assignMultiDeselectAll').onclick = () => {
+            multiPeople.querySelectorAll('.person-chip').forEach(c => c.classList.remove('active'));
+        };
+    }
+
     // Person selector in sub-tasks card
     const subtaskSelect = document.getElementById('subtaskPersonSelect');
     if (subtaskSelect) {
@@ -421,6 +436,7 @@ function setupAssignScopeSegmented() {
             const scope = btn.dataset.scope;
             document.getElementById('assignGroupField').style.display = scope === 'group' ? 'block' : 'none';
             document.getElementById('assignPersonField').style.display = scope === 'person' ? 'block' : 'none';
+            document.getElementById('assignMultiField').style.display = scope === 'multi' ? 'block' : 'none';
         });
     });
 }
@@ -494,7 +510,24 @@ function setupAssignPanel() {
             const person = document.getElementById('assignPersonSelect').value;
             if (!person) { alert('Select a person'); return; }
             key = 'person_' + person;
-        }
+        } else if (scope === 'multi') {
+            const selected = document.querySelectorAll('#assignMultiPeople .person-chip.active');
+            if (selected.length === 0) { alert('Select at least one person'); return; }
+            try {
+                const docRef = db.collection('activities').doc(activityId);
+                const doc = await docRef.get();
+                if (!doc.exists) return;
+                const data = doc.data();
+                if (!data.assignments) data.assignments = {};
+                selected.forEach(chip => {
+                    data.assignments['person_' + chip.dataset.personId] = role;
+                });
+                await docRef.update({ assignments: data.assignments });
+                document.getElementById('assignRoleInput').value = '';
+                renderCurrentAssignments(activityId);
+                return;
+            } catch (err) { alert('Error: ' + err.message); return; }
+        } else { alert('Select who to assign to'); return; }
 
         try {
             const docRef = db.collection('activities').doc(activityId);
