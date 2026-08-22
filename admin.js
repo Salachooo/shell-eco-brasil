@@ -406,7 +406,7 @@ function refreshActivitiesList() {
                     <div style="font-size:11px;color:var(--text-muted)">${assignCount} assignments · ${subtaskCount} sub-tasks</div>
                 </div>
                 <div style="display:flex;gap:4px">
-                    <button class="btn-icon-small" onclick="editActivity('${activity.id}')" title="Edit date/time">✏️</button>
+                    <button class="btn-icon-small" onclick="openActivityEditModal('${activity.id}')" title="Edit activity">✏️</button>
                     <button class="btn-icon-small" onclick="cloneActivity('${activity.id}')" title="Clone activity">📋</button>
                     <button class="btn-icon-small" onclick="deleteActivity('${activity.id}')" title="Delete">🗑️</button>
                 </div>
@@ -916,7 +916,7 @@ function renderAssemblyStagesList(activityId) {
             <div class="assembly-stage-actions">
                 <button class="btn-icon-small" type="button" data-assembly-action="up" data-stage-id="${stage.id}" ${idx === 0 ? 'disabled' : ''}>↑</button>
                 <button class="btn-icon-small" type="button" data-assembly-action="down" data-stage-id="${stage.id}" ${idx === stages.length - 1 ? 'disabled' : ''}>↓</button>
-                <button class="btn-icon-small" type="button" onclick="editAssemblyStage('${activityId}','${stage.id}')" title="Edit stage">✏️</button>
+                <button class="btn-icon-small" type="button" onclick="openActivityEditModal('${activityId}')" title="Edit activity">✏️</button>
                 <button class="btn-icon-small" type="button" data-assembly-action="remove" data-stage-id="${stage.id}">✖</button>
             </div>
         </div>
@@ -1331,22 +1331,455 @@ function openAdminPersonDetail(member) {
 }
 
 // =============================================
-// EDIT ACTIVITY (reschedule date/time)
+// EDIT ACTIVITY — full modal editor
 // =============================================
-function editActivity(activityId) {
+let editActivityState = { id: null, data: null };
+
+function openActivityEditModal(activityId) {
     const activity = adminActivities.find(a => a.id === activityId);
     if (!activity) return;
 
-    const newDate = prompt('New date (YYYY-MM-DD):', activity.date || '');
-    if (!newDate) return;
-    const newTime = prompt('New time (HH:MM):', activity.time || '');
-    if (!newTime) return;
+    // Deep clone working copy
+    editActivityState = {
+        id: activityId,
+        data: JSON.parse(JSON.stringify({
+            date: activity.date,
+            time: activity.time,
+            duration: activity.duration || 120,
+            title: activity.title,
+            description: activity.description || '',
+            type: activity.type || 'team_activity',
+            icon: activity.icon || '📋',
+            assignments: activity.assignments || {},
+            personalSubtasks: activity.personalSubtasks || {},
+            multiAssignees: activity.multiAssignees || {},
+            assemblyStages: Array.isArray(activity.assemblyStages) ? activity.assemblyStages : []
+        }))
+    };
 
-    db.collection('activities').doc(activityId).update({ date: newDate, time: newTime })
-        .then(() => {
-            alert('✓ Activity rescheduled to ' + newDate + ' at ' + newTime);
-        })
-        .catch(err => alert('Error: ' + err.message));
+    const d = editActivityState.data;
+    document.getElementById('editActivityDate').value = d.date || '';
+    document.getElementById('editActivityTime').value = d.time || '';
+    document.getElementById('editActivityDuration').value = d.duration || 120;
+    document.getElementById('editActivityType').value = d.type || 'team_activity';
+    document.getElementById('editActivityTitleInput').value = d.title || '';
+    document.getElementById('editActivityDescription').value = d.description || '';
+
+    // Populate person selectors
+    populateEditPersonSelectors();
+
+    // Render dynamic lists
+    renderEditAssignments();
+    renderEditSubtasks();
+    renderEditStages();
+    syncEditAssemblyVisibility();
+
+    document.getElementById('activityEditModal').classList.add('active');
+
+    // Setup listeners once
+    setupActivityEditModal();
+}
+
+function closeActivityEditModal() {
+    document.getElementById('activityEditModal').classList.remove('active');
+    editActivityState = { id: null, data: null };
+}
+
+function setupActivityEditModal() {
+    const closeBtn = document.getElementById('activityEditClose');
+    const overlay = document.getElementById('activityEditModal');
+    const scopeSeg = document.getElementById('editAssignScope');
+
+    if (closeBtn && !closeBtn.dataset.bound) {
+        closeBtn.dataset.bound = 'true';
+        closeBtn.addEventListener('click', closeActivityEditModal);
+    }
+    if (overlay && !overlay.dataset.bound) {
+        overlay.dataset.bound = 'true';
+        overlay.addEventListener('click', (e) => {
+            if (e.target.id === 'activityEditModal') closeActivityEditModal();
+        });
+    }
+
+    // Type change → toggle assembly section
+    const typeSelect = document.getElementById('editActivityType');
+    if (typeSelect && !typeSelect.dataset.bound) {
+        typeSelect.dataset.bound = 'true';
+        typeSelect.addEventListener('change', () => {
+            editActivityState.data.type = typeSelect.value;
+            syncEditAssemblyVisibility();
+        });
+    }
+
+    // Assignment scope segmented control
+    if (scopeSeg && !scopeSeg.dataset.bound) {
+        scopeSeg.dataset.bound = 'true';
+        scopeSeg.querySelectorAll('.segmented-option').forEach(btn => {
+            btn.addEventListener('click', () => {
+                scopeSeg.querySelectorAll('.segmented-option').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const scope = btn.dataset.scope;
+                document.getElementById('editAssignGroupField').style.display = scope === 'group' ? 'block' : 'none';
+                document.getElementById('editAssignPersonField').style.display = scope === 'person' ? 'block' : 'none';
+                document.getElementById('editAssignMultiField').style.display = scope === 'multi' ? 'block' : 'none';
+            });
+        });
+    }
+
+    // Add assignment button
+    const addAssignBtn = document.getElementById('editAddAssignmentBtn');
+    if (addAssignBtn && !addAssignBtn.dataset.bound) {
+        addAssignBtn.dataset.bound = 'true';
+        addAssignBtn.addEventListener('click', addEditAssignment);
+    }
+
+    // Add subtask button
+    const addSubtaskBtn = document.getElementById('editAddSubtaskBtn');
+    if (addSubtaskBtn && !addSubtaskBtn.dataset.bound) {
+        addSubtaskBtn.dataset.bound = 'true';
+        addSubtaskBtn.addEventListener('click', addEditSubtask);
+    }
+
+    // Add stage button
+    const addStageBtn = document.getElementById('editAddStageBtn');
+    if (addStageBtn && !addStageBtn.dataset.bound) {
+        addStageBtn.dataset.bound = 'true';
+        addStageBtn.addEventListener('click', addEditStage);
+    }
+
+    // Save button
+    const saveBtn = document.getElementById('editSaveBtn');
+    if (saveBtn && !saveBtn.dataset.bound) {
+        saveBtn.dataset.bound = 'true';
+        saveBtn.addEventListener('click', saveActivityEdit);
+    }
+}
+
+function populateEditPersonSelectors() {
+    const personSelect = document.getElementById('editAssignPersonSelect');
+    const subtaskSelect = document.getElementById('editSubtaskPersonSelect');
+    const multiContainer = document.getElementById('editAssignMultiPeople');
+
+    const options = adminMembers.map(m =>
+        `<option value="${m.id}">${m.name || m.id} (${(m.group || '').toUpperCase()})</option>`
+    ).join('');
+
+    if (personSelect) personSelect.innerHTML = '<option value="">Select person...</option>' + options;
+    if (subtaskSelect) subtaskSelect.innerHTML = '<option value="">Select person...</option>' + options;
+
+    if (multiContainer) {
+        multiContainer.innerHTML = adminMembers.map(m =>
+            `<div class="person-chip" data-person-id="${m.id}" onclick="this.classList.toggle('active')">👤 ${m.name || m.id}</div>`
+        ).join('');
+    }
+}
+
+function getAssignmentTargetLabel(key) {
+    if (key === 'all') return '👥 Everyone';
+    if (key === 'admins') return '⭐ Admins';
+    if (key.startsWith('group_')) return '🅰️ ' + key.replace('group_', '').toUpperCase();
+    if (key.startsWith('person_')) {
+        const id = key.replace('person_', '');
+        const m = adminMembers.find(mm => mm.id === id);
+        return '👤 ' + (m ? m.name || id : id);
+    }
+    if (key.startsWith('multi_')) {
+        const ids = (editActivityState.data.multiAssignees || {})[key] || [];
+        const names = ids.map(id => {
+            const m = adminMembers.find(mm => mm.id === id);
+            return m ? (m.name || id) : id;
+        });
+        return '👥 ' + names.join(', ');
+    }
+    return key;
+}
+
+function renderEditAssignments() {
+    const container = document.getElementById('editAssignmentsList');
+    const a = editActivityState.data.assignments || {};
+    const entries = Object.entries(a);
+    if (!entries.length) {
+        container.innerHTML = '<p class="text-muted" style="padding:4px 0">No assignments yet.</p>';
+        return;
+    }
+    container.innerHTML = entries.map(([key, value]) => `
+        <div class="edit-assign-item">
+            <div>
+                <span class="target">${getAssignmentTargetLabel(key)}</span>
+                <span class="role-text"> — ${value}</span>
+            </div>
+            <button class="btn-icon-small" onclick="removeEditAssignment('${key}')" title="Remove">✖</button>
+        </div>
+    `).join('');
+}
+
+function removeEditAssignment(key) {
+    const data = editActivityState.data;
+    delete (data.assignments || {})[key];
+    if (key.startsWith('multi_') && data.multiAssignees) delete data.multiAssignees[key];
+    renderEditAssignments();
+}
+
+function addEditAssignment() {
+    const role = document.getElementById('editAssignRoleInput').value.trim();
+    if (!role) { alert('Enter a task description'); return; }
+
+    const activeScope = document.querySelector('#editAssignScope .segmented-option.active');
+    const scope = activeScope ? activeScope.dataset.scope : 'all';
+    const data = editActivityState.data;
+    if (!data.assignments) data.assignments = {};
+
+    if (scope === 'all') {
+        data.assignments['all'] = role;
+    } else if (scope === 'group') {
+        const group = document.getElementById('editAssignGroupSelect').value;
+        data.assignments['group_' + group] = role;
+    } else if (scope === 'person') {
+        const person = document.getElementById('editAssignPersonSelect').value;
+        if (!person) { alert('Select a person'); return; }
+        data.assignments['person_' + person] = role;
+    } else if (scope === 'multi') {
+        const chips = document.querySelectorAll('#editAssignMultiPeople .person-chip.active');
+        if (!chips.length) { alert('Select at least one person'); return; }
+        const multiKey = 'multi_' + Date.now();
+        if (!data.multiAssignees) data.multiAssignees = {};
+        data.multiAssignees[multiKey] = Array.from(chips).map(c => c.dataset.personId);
+        data.assignments[multiKey] = role;
+        chips.forEach(c => c.classList.remove('active'));
+        // Re-render stages so the new multi key appears as an assignable option
+        renderEditStages();
+    }
+
+    document.getElementById('editAssignRoleInput').value = '';
+    renderEditAssignments();
+}
+
+function renderEditSubtasks() {
+    const container = document.getElementById('editSubtasksList');
+    const st = editActivityState.data.personalSubtasks || {};
+    const entries = [];
+    Object.keys(st).forEach(memberId => {
+        if (Array.isArray(st[memberId])) {
+            st[memberId].forEach((text, idx) => entries.push({ memberId, text, idx }));
+        }
+    });
+    if (!entries.length) {
+        container.innerHTML = '<p class="text-muted" style="padding:4px 0">No sub-tasks yet.</p>';
+        return;
+    }
+    container.innerHTML = entries.map(e => {
+        const m = adminMembers.find(mm => mm.id === e.memberId);
+        const name = m ? (m.name || e.memberId) : e.memberId;
+        return `
+            <div class="edit-subtask-item">
+                <span>👤 <strong>${name}</strong> — ${e.text}</span>
+                <button class="btn-icon-small" onclick="removeEditSubtask('${e.memberId}', ${e.idx})" title="Remove">✖</button>
+            </div>`;
+    }).join('');
+}
+
+function removeEditSubtask(memberId, idx) {
+    const data = editActivityState.data;
+    const map = data.personalSubtasks || {};
+    if (Array.isArray(map[memberId])) {
+        map[memberId].splice(idx, 1);
+        if (map[memberId].length === 0) delete map[memberId];
+    }
+    renderEditSubtasks();
+}
+
+function addEditSubtask() {
+    const personId = document.getElementById('editSubtaskPersonSelect').value;
+    const text = document.getElementById('editSubtaskText').value.trim();
+    if (!personId || !text) { alert('Select a person and enter a sub-task'); return; }
+
+    const data = editActivityState.data;
+    if (!data.personalSubtasks) data.personalSubtasks = {};
+    if (!Array.isArray(data.personalSubtasks[personId])) data.personalSubtasks[personId] = [];
+    data.personalSubtasks[personId].push(text);
+
+    document.getElementById('editSubtaskText').value = '';
+    renderEditSubtasks();
+}
+
+function syncEditAssemblyVisibility() {
+    const section = document.getElementById('editAssemblySection');
+    if (section) {
+        section.style.display = editActivityState.data.type === 'assembly' ? 'block' : 'none';
+    }
+}
+
+function renderEditStages() {
+    const container = document.getElementById('editStagesList');
+    const data = editActivityState.data;
+    const stages = Array.isArray(data.assemblyStages) ? data.assemblyStages : [];
+
+    if (data.type !== 'assembly') {
+        container.innerHTML = '<p class="text-muted" style="padding:4px 0">Only Assembly activities have stages.</p>';
+        return;
+    }
+    if (!stages.length) {
+        container.innerHTML = '<p class="text-muted" style="padding:4px 0">No stages yet. Add the first stage below.</p>';
+        return;
+    }
+
+    container.innerHTML = stages.map((stage, idx) => {
+        const assignOptions = buildStageAssignmentOptions(stage.assignmentKey);
+        const depsHtml = buildStageDepsHtml(stage, stages);
+        return `
+            <div class="edit-stage-item" data-stage-id="${stage.id}">
+                <div class="edit-stage-head">
+                    <span style="font-weight:700;color:var(--accent-primary);font-size:13px">${idx + 1}.</span>
+                    <input type="text" value="${stage.title || ''}" onchange="updateEditStageTitle('${stage.id}', this.value)">
+                    <select onchange="updateEditStageAssign('${stage.id}', this.value)">${assignOptions}</select>
+                    <button class="btn-icon-small" onclick="removeEditStage('${stage.id}')" title="Remove stage">✖</button>
+                </div>
+                <div class="edit-stage-deps">
+                    <span class="edit-stage-deps-label">Depends on (click to toggle)</span>
+                    ${depsHtml}
+                </div>
+            </div>`;
+    }).join('');
+}
+
+function buildStageAssignmentOptions(currentKey) {
+    const opts = [
+        ['all', '👥 Everyone'],
+        ['admins', '⭐ Admins'],
+        ['group_alpha', '🅰️ Group Alpha'],
+        ['group_beta', '🅱️ Group Beta'],
+        ['group_gamma', '🅶 Group Gamma'],
+        ['group_delta', '🅳 Group Delta']
+    ];
+    // Add individual persons
+    adminMembers.forEach(m => {
+        opts.push(['person_' + m.id, '👤 ' + (m.name || m.id)]);
+    });
+    // Add existing multi keys
+    const multi = editActivityState.data.multiAssignees || {};
+    Object.keys(multi).forEach(k => {
+        const names = (multi[k] || []).map(id => {
+            const m = adminMembers.find(mm => mm.id === id);
+            return m ? (m.name || id) : id;
+        });
+        opts.push([k, '👥 ' + names.join(', ')]);
+    });
+    // Ensure current key is present (if not in options)
+    if (!opts.some(o => o[0] === currentKey)) {
+        opts.push([currentKey, getAssignmentTargetLabel(currentKey)]);
+    }
+    return opts.map(([val, label]) =>
+        `<option value="${val}" ${val === currentKey ? 'selected' : ''}>${label}</option>`
+    ).join('');
+}
+
+function buildStageDepsHtml(stage, stages) {
+    const others = stages.filter(s => s.id !== stage.id);
+    if (!others.length) {
+        return '<span class="edit-stage-deps-empty">No other stages to depend on.</span>';
+    }
+    const deps = Array.isArray(stage.dependsOn) ? stage.dependsOn : [];
+    return `<div style="display:flex;flex-wrap:wrap;gap:4px">` + others.map(s => {
+        const active = deps.includes(s.id);
+        return `<span class="dep-chip ${active ? 'active' : ''}" onclick="toggleEditStageDep('${stage.id}', '${s.id}')">${s.title}</span>`;
+    }).join('') + `</div>`;
+}
+
+function updateEditStageTitle(stageId, newTitle) {
+    const stages = editActivityState.data.assemblyStages || [];
+    const s = stages.find(x => x.id === stageId);
+    if (s) s.title = newTitle;
+}
+
+function updateEditStageAssign(stageId, key) {
+    const stages = editActivityState.data.assemblyStages || [];
+    const s = stages.find(x => x.id === stageId);
+    if (s) s.assignmentKey = key;
+}
+
+function toggleEditStageDep(stageId, depId) {
+    const stages = editActivityState.data.assemblyStages || [];
+    const s = stages.find(x => x.id === stageId);
+    if (!s) return;
+    if (!Array.isArray(s.dependsOn)) s.dependsOn = [];
+    const idx = s.dependsOn.indexOf(depId);
+    if (idx >= 0) s.dependsOn.splice(idx, 1);
+    else s.dependsOn.push(depId);
+    renderEditStages();
+}
+
+function addEditStage() {
+    const title = document.getElementById('editNewStageTitle').value.trim();
+    if (!title) { alert('Enter a stage title'); return; }
+    const data = editActivityState.data;
+    if (!Array.isArray(data.assemblyStages)) data.assemblyStages = [];
+    const stageId = 'stage_' + Date.now();
+    data.assemblyStages.push({
+        id: stageId,
+        title,
+        assignmentKey: 'all',
+        dependsOn: [],
+        order: data.assemblyStages.length
+    });
+    document.getElementById('editNewStageTitle').value = '';
+    renderEditStages();
+}
+
+function removeEditStage(stageId) {
+    const data = editActivityState.data;
+    data.assemblyStages = (data.assemblyStages || [])
+        .filter(s => s.id !== stageId)
+        .map((s, order) => ({
+            ...s,
+            order,
+            dependsOn: Array.isArray(s.dependsOn) ? s.dependsOn.filter(d => d !== stageId) : []
+        }));
+    renderEditStages();
+}
+
+async function saveActivityEdit() {
+    const btn = document.getElementById('editSaveBtn');
+    const data = editActivityState.data;
+    if (!editActivityState.id || !data) return;
+
+    // Gather basic fields
+    data.date = document.getElementById('editActivityDate').value;
+    data.time = document.getElementById('editActivityTime').value;
+    data.duration = parseInt(document.getElementById('editActivityDuration').value) || 120;
+    data.title = document.getElementById('editActivityTitleInput').value.trim();
+    data.description = document.getElementById('editActivityDescription').value.trim();
+    data.type = document.getElementById('editActivityType').value;
+
+    // Update icon based on type
+    const iconByType = {
+        team_activity: '📋', meeting: '🧠', competition: '🏎️', practice: '🔧',
+        assembly: '🔩', meal: '🍽️', free_time: '🕓'
+    };
+    data.icon = iconByType[data.type] || '📋';
+
+    if (!data.date || !data.time || !data.title) { alert('Complete date, time and title'); return; }
+
+    btn.classList.add('loading');
+    try {
+        await db.collection('activities').doc(editActivityState.id).update({
+            date: data.date,
+            time: data.time,
+            duration: data.duration,
+            title: data.title,
+            description: data.description,
+            type: data.type,
+            icon: data.icon,
+            assignments: data.assignments || {},
+            personalSubtasks: data.personalSubtasks || {},
+            multiAssignees: data.multiAssignees || {},
+            assemblyStages: Array.isArray(data.assemblyStages) ? data.assemblyStages : []
+        });
+        closeActivityEditModal();
+        alert('✓ Activity updated');
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+    btn.classList.remove('loading');
 }
 
 // =============================================
@@ -1517,61 +1950,7 @@ function refreshStats() {
 }
 
 // =============================================
-// EDIT ASSEMBLY STAGE
+// EDIT ASSEMBLY STAGE — now handled by the full activity edit modal
 // =============================================
-
-/** Open a prompt-based editor for an assembly stage */
-function editAssemblyStage(activityId, stageId) {
-    const activity = adminActivities.find(a => a.id === activityId);
-    if (!activity) return;
-    const stages = getAssemblyStages(activity);
-    const stage = stages.find(s => s.id === stageId);
-    if (!stage) return;
-
-    const newTitle = prompt('Stage title:', stage.title || '');
-    if (newTitle === null) return;
-
-    const newScope = prompt(
-        'Assignment key:\nall = Everyone\nadmins = Admins\ngroup_alpha/beta/gamma/delta = Group\nperson_<username> = Specific person\nmulti_<id> = Multi-person',
-        stage.assignmentKey || 'all'
-    );
-    if (newScope === null) return;
-
-    // Show available stages for dependency selection
-    const currentDepIds = stage.dependsOn || [];
-    const available = stages.filter(s => s.id !== stageId);
-    let depMsg = 'Available stages:\n';
-    available.forEach(s => {
-        depMsg += `${s.title} (${s.id})\n`;
-    });
-    const currentDepNames = currentDepIds.map(id => {
-        const s = stages.find(st => st.id === id);
-        return s ? s.title : id;
-    }).join(', ');
-    depMsg += '\nCurrent dependencies: ' + (currentDepNames || 'None');
-    depMsg += '\n\nEnter stage IDs to depend on, comma-separated, or leave empty:';
-
-    const newDepInput = prompt(depMsg, currentDepNames || '');
-    if (newDepInput === null) return;
-
-    const newDepIds = newDepInput
-        ? newDepInput.split(',').map(s => {
-            const trimmed = s.trim();
-            const match = stages.find(st => st.title.trim().toLowerCase() === trimmed.toLowerCase());
-            return match ? match.id : trimmed;
-        }).filter(Boolean)
-        : [];
-
-    const updatedStages = stages.map(s => {
-        if (s.id === stageId) {
-            return { ...s, title: newTitle, assignmentKey: newScope, dependsOn: newDepIds };
-        }
-        return s;
-    });
-
-    db.collection('activities').doc(activityId).update({ assemblyStages: updatedStages })
-        .then(() => alert('✓ Stage updated'))
-        .catch(err => alert('Error: ' + err.message));
-}
 
 console.log('SEM Brasil 2026 - Admin Panel v3 loaded (segmented control + array sub-tasks)');

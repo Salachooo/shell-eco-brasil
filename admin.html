@@ -359,10 +359,119 @@
         </main>
     </div>
 
+    <!-- ==================== ACTIVITY EDIT MODAL ==================== -->
+    <div id="activityEditModal" class="modal-overlay">
+        <div class="modal-card modal-card-admin" style="position:relative">
+            <button id="activityEditClose" class="modal-close" type="button">✕</button>
+            <h3 class="modal-title" id="activityEditTitle">✏️ Edit Activity</h3>
+
+            <!-- Basic info -->
+            <div class="modal-section">
+                <h4>Basic Info</h4>
+                <div class="edit-grid">
+                    <div class="input-group">
+                        <label>Date</label>
+                        <input type="date" id="editActivityDate">
+                    </div>
+                    <div class="input-group">
+                        <label>Time</label>
+                        <input type="time" id="editActivityTime">
+                    </div>
+                </div>
+                <div class="edit-grid">
+                    <div class="input-group">
+                        <label>Duration (min)</label>
+                        <input type="number" id="editActivityDuration" min="15" step="15" value="120">
+                    </div>
+                    <div class="input-group">
+                        <label>Type</label>
+                        <select id="editActivityType">
+                            <option value="team_activity">Team Activity</option>
+                            <option value="meeting">Meeting</option>
+                            <option value="competition">Competition</option>
+                            <option value="practice">Practice</option>
+                            <option value="assembly">Assembly</option>
+                            <option value="meal">Meal</option>
+                            <option value="free_time">Free Time</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Title</label>
+                    <input type="text" id="editActivityTitleInput" placeholder="Activity title">
+                </div>
+                <div class="input-group">
+                    <label>Description</label>
+                    <textarea id="editActivityDescription" rows="2" placeholder="Brief description for the team"></textarea>
+                </div>
+            </div>
+
+            <!-- Assignments -->
+            <div class="modal-section">
+                <h4>Assignments</h4>
+                <div id="editAssignmentsList" style="margin-bottom:8px"></div>
+                <div class="segmented-control" id="editAssignScope" style="margin-bottom:8px">
+                    <button class="segmented-option active" data-scope="all">👥 Everyone</button>
+                    <button class="segmented-option" data-scope="group">🅰️ Group</button>
+                    <button class="segmented-option" data-scope="person">👤 Person</button>
+                    <button class="segmented-option" data-scope="multi">👥 Multi</button>
+                </div>
+                <div id="editAssignGroupField" class="input-group" style="display:none">
+                    <label>Group</label>
+                    <select id="editAssignGroupSelect">
+                        <option value="alpha">Alpha</option>
+                        <option value="beta">Beta</option>
+                        <option value="gamma">Gamma</option>
+                        <option value="delta">Delta</option>
+                    </select>
+                </div>
+                <div id="editAssignPersonField" class="input-group" style="display:none">
+                    <label>Person</label>
+                    <select id="editAssignPersonSelect"></select>
+                </div>
+                <div id="editAssignMultiField" class="input-group" style="display:none">
+                    <label>People</label>
+                    <div id="editAssignMultiPeople" class="people-selector-grid"></div>
+                </div>
+                <div class="input-group">
+                    <label>Task description</label>
+                    <input type="text" id="editAssignRoleInput" placeholder="e.g. Managing Paddock">
+                </div>
+                <button id="editAddAssignmentBtn" class="btn btn-outline btn-full" type="button">+ Add Assignment</button>
+            </div>
+
+            <!-- Personal sub-tasks -->
+            <div class="modal-section">
+                <h4>Personal Sub-tasks</h4>
+                <div id="editSubtasksList" style="margin-bottom:8px"></div>
+                <div class="edit-subtask-form">
+                    <select id="editSubtaskPersonSelect"></select>
+                    <input type="text" id="editSubtaskText" placeholder="Sub-task description...">
+                    <button id="editAddSubtaskBtn" class="btn btn-outline btn-small" type="button">+ Add</button>
+                </div>
+            </div>
+
+            <!-- Assembly stages -->
+            <div class="modal-section" id="editAssemblySection" style="display:none">
+                <h4>Assembly Stages</h4>
+                <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px">
+                    Click a dependency chip to mark which previous stages must be completed before this stage unlocks.
+                </p>
+                <div id="editStagesList" style="margin-bottom:8px"></div>
+                <div class="edit-subtask-form">
+                    <input type="text" id="editNewStageTitle" placeholder="New stage title...">
+                    <button id="editAddStageBtn" class="btn btn-outline btn-small" type="button">+ Add Stage</button>
+                </div>
+            </div>
+
+            <button id="editSaveBtn" class="btn btn-primary btn-full" type="button">💾 Save Changes</button>
+        </div>
+    </div>
+
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-    <script src="firebase-config.js?v=9"></script>
-    <script src="seed-data.js?v=9"></script>
-    <script src="admin.js?v=9"></script>
+    <script src="firebase-config.js?v=10"></script>
+    <script src="seed-data.js?v=10"></script>
+    <script src="admin.js?v=10"></script>
 </body>
 </html>

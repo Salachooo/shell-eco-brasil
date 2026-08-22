@@ -1048,6 +1048,49 @@ select {
   gap: 4px;
 }
 
+/* Activity Edit Modal (admin) */
+.modal-card-admin { border-radius: var(--radius-lg); }
+
+.edit-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+
+.edit-subtask-form {
+  display: flex; gap: 6px; align-items: center;
+}
+.edit-subtask-form select { flex: 1; padding: 7px 10px; font-size: 12px; }
+.edit-subtask-form input { flex: 1.4; padding: 7px 10px; font-size: 12px; }
+.edit-subtask-form button { flex-shrink: 0; white-space: nowrap; }
+
+.edit-assign-item,
+.edit-subtask-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 7px 10px; background: var(--bg-surface);
+  border-radius: var(--radius-sm); margin-bottom: 5px; font-size: 12px;
+}
+.edit-assign-item .target { font-weight: 600; }
+.edit-assign-item .role-text { color: var(--text-secondary); }
+
+.edit-stage-item {
+  background: var(--bg-surface); border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm); padding: 10px; margin-bottom: 8px;
+}
+.edit-stage-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.edit-stage-head input[type="text"] { flex: 1; padding: 7px 10px; font-size: 13px; font-weight: 600; }
+.edit-stage-head select { width: 46%; padding: 7px 10px; font-size: 12px; }
+
+.edit-stage-deps { margin-bottom: 6px; }
+.edit-stage-deps-label {
+  font-size: 10px; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: 0.4px; display: block; margin-bottom: 4px;
+}
+.edit-stage-deps .dep-chip { font-size: 10px; padding: 2px 8px; }
+.edit-stage-deps-empty { font-size: 11px; color: var(--text-muted); }
+
+.dep-chip.remove-mode.active { background: var(--accent-red); border-color: var(--accent-red); color: white; }
+
 /* Person Detail Slide-up */
 .person-detail { margin-top: 12px; }
 
